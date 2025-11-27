@@ -8,11 +8,11 @@ If you do all of those things, and follow it through, here is the expected resul
 
 ![There is supposed to be a picture here](images/fullscreen_1.png)
 
-![There is supposed to be a picture here](images/bench_shot1.png)
+![There is supposed to be a picture here](images/bench_shot1.jpg)
 
-![There is supposed to be a picture here](images/gauges.png)
+![There is supposed to be a picture here](images/gauges.jpg)
 
-![There is supposed to be a picture here](images/engine_one1.png)
+![There is supposed to be a picture here](images/engine_one1.jpg)
 
 The finished dyno has a 16"x16" footprint and can be easily transported to track day with your friends. It is powered by 5 volts over USB-C, I power mine from one of those cheap portable batteries for charging you phone or what have you.
 
