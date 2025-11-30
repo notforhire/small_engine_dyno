@@ -2,7 +2,7 @@ I'm not going to hold your hand, but if you are capable of finishing this projec
 
 I'm no expert at any one part of this project, so don't judge the code structure or the CAD file too harshly.
 
-You will need to cut, drill, and weld. You will have to solder to the pcb of the touchscreen. You will need to get platformIO up and running on your computer in order to upload the code to the touchsreen. You will need to understand enough freeCAD to get the parts and hardware breakdown you need from the cad file, along with the dimensions and locations of all the cut/drilled/welded parts. If that all sounds like a reasonable enough barrier to entry that you still want to build one yourself, you are exactly the reason I am open sourcing this project, I'm proud of you.
+You will need to cut, drill, and weld. You will have to solder to the pcb of the touchscreen. A 3D printer will be needed to make the case for the touchscreen. You will need to get platformIO up and running on your computer in order to upload the code to the touchsreen. You will need to understand enough freeCAD to get the parts and hardware breakdown you need from the cad file, along with the dimensions and locations of all the cut/drilled/welded parts. If that all sounds like a reasonable enough barrier to entry that you still want to build one yourself, you are exactly the reason I am open sourcing this project, I'm proud of you.
 
 If you do all of those things, and follow it through, here is what the expected results will look like:
 
