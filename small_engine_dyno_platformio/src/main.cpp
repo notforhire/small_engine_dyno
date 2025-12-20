@@ -176,7 +176,7 @@ void setup()
   ui_init();
 
   //attach interupt to hallPin
-  pinMode(hallPin, INPUT_PULLUP); // Ensure pin is pulled high
+  pinMode(hallPin, INPUT_PULLDOWN); // Ensure pin is pulled low
   attachInterrupt(digitalPinToInterrupt(hallPin), rpm_isr, FALLING);
 }
 
@@ -336,23 +336,27 @@ void loop()
 
     if (micros() - lastTime > RPM_TIMEOUT) rpm = 0;
     else if (localDelta > 0) rpm = 60000000UL / localDelta;
-    scaleReading = scale.read()/100;
-    torqueNeedlePos = map(scaleReading, noWeight, calibration, 0, 1000); //1 ft/lb equals 62.5 steps on the gauge ***Here is where a correction factor is introduced. I don't like it, I wish I knew why I needed it.***
-    horsepowerNeedlePos = (torqueNeedlePos*rpm)/5252;
-    rpmNeedlePos = map(rpm, 0, 10000, 0, 2500);
-    torque = (float)torqueNeedlePos/62.5;
-    horsepower = ((torque*rpm)/5252);
+    
+    if (scale.is_ready()) {
+      scaleReading = scale.read() / 100;
+      torqueNeedlePos = map(scaleReading, noWeight, calibration, 0, 1000); //there are 2500 steps in the gauge from zero to max. This number is the step expected when hanging the calibration weight. Example: 20lb weight on 1' arm with 40lb max gauge reading 2500/40=62.5 steps/pound 20 pound weight x 62.5=1250
+      if (abs(torqueNeedlePos) < 25) torqueNeedlePos = 0; // Ignore tiny fluctuations at idle
+      horsepowerNeedlePos = (torqueNeedlePos*rpm)/5252;
+      rpmNeedlePos = map(rpm, 0, 20000, 0, 2500);
+      torque = (float)torqueNeedlePos/62.5;
+      horsepower = ((torque*rpm)/5252);
 
-    //If horsepower or torque are higher than current max set to max
-    if(torque > maxTorque)
-    {
-      maxTorque = torque;
-      maxTorqueRpm = rpm;
-    }
-    if(horsepower > maxHorsepower)
-    {
-      maxHorsepower = horsepower;
-      maxHorsepowerRpm = rpm;
+      //If horsepower or torque are higher than current max set to max
+      if(torque > maxTorque)
+      {
+       maxTorque = torque;
+        maxTorqueRpm = rpm;
+     }
+     if(horsepower > maxHorsepower)
+     {
+       maxHorsepower = horsepower;
+       maxHorsepowerRpm = rpm;
+     }
     }
 
     //Convert values to something human readable for display
