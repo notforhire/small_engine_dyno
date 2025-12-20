@@ -87,7 +87,7 @@ int scaleReading; //Declare varible for raw scale data
 int horsepowerNeedlePos = 0; // Declare horsepowerNeedlePos variable to rotate horsepower gauge needles
 int rpmNeedlePos = 0; // Declare rpmNeedlePos variable to rotate RPM gauge needles
 int noWeight; // The varaible for storing the scale output when at zero weight used for calibration
-int calibration = 16000; // Variable for storing the raw scale output when 20 pound weight is hung from calibration arm
+int calibration = 20000; // Variable for storing the raw scale output when 20 pound weight is hung from calibration arm
 int maxHorsepowerRpm; //RPM at which maxHp is set
 int maxTorqueRpm; //RPM at which maxTorque is set
 int torqueGraphRange = 2000; //Range variable for scaling draph
@@ -104,8 +104,9 @@ bool rpmMet = 0;
 bool brakeOn = 0;
 bool rpmRange = 0;
 //Variables for chart positions
-short t1; short t2; short t3; short t4; short t5; short t6; short t7; short t8; short t9; short t10; short t11; short t12; short t13; short t14; short t15; short t16; short t17; short t18; short t19; short t20; short t21;
-short h1; short h2; short h3; short h4; short h5; short h6; short h7; short h8; short h9; short h10; short h11; short h12; short h13; short h14; short h15; short h16; short h17; short h18; short h19; short h20; short h21;
+const int MAX_BINS = 31;
+short t_bins[MAX_BINS] = {0};
+short h_bins[MAX_BINS] = {0};
 
 HX711 scale; //Declare scale to call HX711 library
 lv_obj_t * ui_Chart;
@@ -183,8 +184,10 @@ void startDyno(lv_event_t * e)
 //Funtion to reset stored max values
 void resetMax(lv_event_t * e)
 {
-  t1=0; t2=0; t3=0; t4=0; t5=0; t6=0; t7=0; t8=0; t9=0; t10=0; t11=0; t12=0; t13=0; t14=0; t15=0; t16=0; t17=0; t18=0; t19=0; t20=0; t21=0;
-  h1=0; h2=0; h3=0; h4=0; h5=0; h6=0; h7=0; h8=0; h9=0; h10=0; h11=0; h12=0; h13=0; h14=0; h15=0; h16=0; h17=0; h18=0; h19=0; h20=0; h21=0;
+  for(int i = 0; i < MAX_BINS; i++) {
+    t_bins[i] = 0; 
+    h_bins[i] = 0;
+  }
   maxTorque = 0;
   maxTorqueRpm = 0;
   maxHorsepower = 0;
@@ -194,75 +197,42 @@ void resetMax(lv_event_t * e)
 //Function name should be explicit enough
 void drawChart(lv_event_t * e)
 {
-  if(ui_Chart != NULL)
-  {
-  lv_obj_del_async(ui_Chart);
+  if(ui_Chart != NULL) {
+    lv_obj_del_async(ui_Chart);
   }
-    ui_Chart = lv_chart_create(ui_ChartScreen);
-    lv_obj_set_width(ui_Chart, 700);
-    lv_obj_set_height(ui_Chart, 325);
-    lv_obj_set_x(ui_Chart, 0);
-    lv_obj_set_y(ui_Chart, -60);
-    lv_obj_set_align(ui_Chart, LV_ALIGN_CENTER);
-    lv_chart_set_type(ui_Chart, LV_CHART_TYPE_LINE);
-    lv_chart_set_point_count(ui_Chart, 21);
-    lv_chart_set_range(ui_Chart, LV_CHART_AXIS_PRIMARY_Y, 0, torqueGraphRange);
-    lv_chart_set_range(ui_Chart, LV_CHART_AXIS_SECONDARY_Y, 0, horsepowerGraphRange);
-    lv_chart_set_div_line_count(ui_Chart, 5, 11);
-    lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_PRIMARY_X, 10, 5, 11, 2, false, 50);
-    lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 5, 2, true, 50);
-    lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_SECONDARY_Y, 10, 5, 5, 2, true, 25);  
-    //lv_chart_set_axis_tick(chart, axis, major_len, minor_len, major_cnt, minor_cnt, label_en, draw_size) 
-    lv_chart_series_t * ui_Chart_series_1 = lv_chart_add_series(ui_Chart, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y);
-    ui_Chart_series_1->y_points[0] = t1;
-    ui_Chart_series_1->y_points[1] = t2;
-    ui_Chart_series_1->y_points[2] = t3;
-    ui_Chart_series_1->y_points[3] = t4;
-    ui_Chart_series_1->y_points[4] = t5;
-    ui_Chart_series_1->y_points[5] = t6;
-    ui_Chart_series_1->y_points[6] = t7;
-    ui_Chart_series_1->y_points[7] = t8;
-    ui_Chart_series_1->y_points[8] = t9;
-    ui_Chart_series_1->y_points[9] = t10;
-    ui_Chart_series_1->y_points[10] = t11;
-    ui_Chart_series_1->y_points[11] = t12;
-    ui_Chart_series_1->y_points[12] = t13;
-    ui_Chart_series_1->y_points[13] = t14;
-    ui_Chart_series_1->y_points[14] = t15;
-    ui_Chart_series_1->y_points[15] = t16;
-    ui_Chart_series_1->y_points[16] = t17;
-    ui_Chart_series_1->y_points[17] = t18;
-    ui_Chart_series_1->y_points[18] = t19;
-    ui_Chart_series_1->y_points[19] = t20;
-    ui_Chart_series_1->y_points[20] = t21;
-    lv_chart_series_t * ui_Chart_series_2 = lv_chart_add_series(ui_Chart, lv_color_hex(0x2D00FF), LV_CHART_AXIS_SECONDARY_Y);
-    ui_Chart_series_2->y_points[0] = h1;
-    ui_Chart_series_2->y_points[1] = h2;
-    ui_Chart_series_2->y_points[2] = h3;
-    ui_Chart_series_2->y_points[3] = h4;
-    ui_Chart_series_2->y_points[4] = h5;
-    ui_Chart_series_2->y_points[5] = h6;
-    ui_Chart_series_2->y_points[6] = h7;
-    ui_Chart_series_2->y_points[7] = h8;
-    ui_Chart_series_2->y_points[8] = h9;
-    ui_Chart_series_2->y_points[9] = h10;
-    ui_Chart_series_2->y_points[10] = h11;
-    ui_Chart_series_2->y_points[11] = h12;
-    ui_Chart_series_2->y_points[12] = h13;
-    ui_Chart_series_2->y_points[13] = h14;
-    ui_Chart_series_2->y_points[14] = h15;
-    ui_Chart_series_2->y_points[15] = h16;
-    ui_Chart_series_2->y_points[16] = h17;
-    ui_Chart_series_2->y_points[17] = h18;
-    ui_Chart_series_2->y_points[18] = h19;
-    ui_Chart_series_2->y_points[19] = h20;
-    ui_Chart_series_2->y_points[20] = h21;
-    lv_obj_set_style_bg_img_src(ui_Chart, &ui_img_carbon_fiber3_png, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_color(ui_Chart, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_opa(ui_Chart, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_line_color(ui_Chart, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_line_opa(ui_Chart, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_font(ui_Chart, &ui_font_tomorrow18, LV_PART_TICKS | LV_STATE_DEFAULT);
+  
+  ui_Chart = lv_chart_create(ui_ChartScreen);
+  lv_obj_set_width(ui_Chart, 700);
+  lv_obj_set_height(ui_Chart, 325);
+  lv_obj_set_x(ui_Chart, 0);
+  lv_obj_set_y(ui_Chart, -60);
+  lv_obj_set_align(ui_Chart, LV_ALIGN_CENTER);
+  lv_chart_set_type(ui_Chart, LV_CHART_TYPE_LINE);
+  
+  // Update point count to match our data bins
+  lv_chart_set_point_count(ui_Chart, MAX_BINS);
+  lv_chart_set_range(ui_Chart, LV_CHART_AXIS_PRIMARY_Y, 0, torqueGraphRange);
+  lv_chart_set_range(ui_Chart, LV_CHART_AXIS_SECONDARY_Y, 0, horsepowerGraphRange);
+  
+  
+  lv_chart_series_t * ser1 = lv_chart_add_series(ui_Chart, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y);
+  lv_chart_series_t * ser2 = lv_chart_add_series(ui_Chart, lv_color_hex(0x2D00FF), LV_CHART_AXIS_SECONDARY_Y);
+
+  // Fill chart from arrays using a loop
+  for(int i = 0; i < MAX_BINS; i++) {
+    ser1->y_points[i] = t_bins[i];
+    ser2->y_points[i] = h_bins[i];
+  }
+
+  // Visual styling
+  lv_chart_set_div_line_count(ui_Chart, 5, 16);
+  lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_PRIMARY_X, 10, 5, 16, 2, false, 50);
+  lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 5, 2, true, 50);
+  lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_SECONDARY_Y, 10, 5, 5, 2, true, 25);  
+  lv_obj_set_style_bg_img_src(ui_Chart, &ui_img_carbon_fiber3_png, LV_PART_MAIN | LV_STATE_DEFAULT);
+  lv_obj_set_style_border_color(ui_Chart, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+  lv_obj_set_style_text_font(ui_Chart, &ui_font_tomorrow18, LV_PART_TICKS | LV_STATE_DEFAULT);
+  lv_obj_set_style_size(ui_Chart, 0, LV_PART_INDICATOR);
 }
 
 //Calling this function switches between high and low range torque and horsepower gauges on the freestyle screen
@@ -445,57 +415,42 @@ void loop()
       }
     } //End runMode
 
-    //Stupid waste of space, time, and power. This section does the "heavy lifting" to fill in the chart arrays.
-    if(rpmRange == 1)//0-10000 RPM
+    // Fill bins for chart array
+    int binIndex = -1;
+
+    if(rpmRange == 1) // 0-10000 RPM range
     { 
-      lv_label_set_text(ui_chartScreenChartXLabel, "0               1              2              3              4              5              6              7              8              9              10");
-      if(rpm >=0 && rpm <250){if(torque*100 > t1){t1 = torque*100;}if(horsepower*100 > h1){h1 = horsepower*100;}}
-      else if(rpm >=250 && rpm <750){if(torque*100 > t2){t2 = torque*100;}if(horsepower*100 > h2){h2 = horsepower*100;}}
-      else if(rpm >=750 && rpm <1250){if(torque*100 > t3){t3 = torque*100;}if(horsepower*100 > h3){h3 = horsepower*100;}}
-      else if(rpm >=1250 && rpm <1750){if(torque*100 > t4){t4 = torque*100;}if(horsepower*100 > h4){h4 = horsepower*100;}}
-      else if(rpm >=1750 && rpm <2250){if(torque*100 > t5){t5 = torque*100;}if(horsepower*100 > h5){h5 = horsepower*100;}}
-      else if(rpm >=2250 && rpm <2750){if(torque*100 > t6){t6 = torque*100;}if(horsepower*100 > h6){h6 = horsepower*100;}}
-      else if(rpm >=2750 && rpm <3250){if(torque*100 > t7){t7 = torque*100;}if(horsepower*100 > h7){h7 = horsepower*100;}}
-      else if(rpm >=3250 && rpm <3750){if(torque*100 > t8){t8 = torque*100;}if(horsepower*100 > h8){h8 = horsepower*100;}}
-      else if(rpm >=3750 && rpm <4250){if(torque*100 > t9){t9 = torque*100;}if(horsepower*100 > h9){h9 = horsepower*100;}}
-      else if(rpm >=4250 && rpm <4750){if(torque*100 > t10){t10 = torque*100;}if(horsepower*100 > h10){h10= horsepower*100;}}
-      else if(rpm >=4750 && rpm <5250){if(torque*100 > t11){t11 = torque*100;}if(horsepower*100 > h11){h11 = horsepower*100;}}
-      else if(rpm >=5250 && rpm <5750){if(torque*100 > t12){t12 = torque*100;}if(horsepower*100 > h12){h12 = horsepower*100;}}
-      else if(rpm >=5750 && rpm <6250){if(torque*100 > t13){t13 = torque*100;}if(horsepower*100 > h13){h13 = horsepower*100;}}
-      else if(rpm >=6250 && rpm <6750){if(torque*100 > t14){t14 = torque*100;}if(horsepower*100 > h14){h14 = horsepower*100;}}
-      else if(rpm >=6750 && rpm <7250){if(torque*100 > t15){t15 = torque*100;}if(horsepower*100 > h15){h15 = horsepower*100;}}
-      else if(rpm >=7250 && rpm <7750){if(torque*100 > t16){t16 = torque*100;}if(horsepower*100 > h16){h16 = horsepower*100;}}
-      else if(rpm >=7750 && rpm <8250){if(torque*100 > t17){t17 = torque*100;}if(horsepower*100 > h17){h17 = horsepower*100;}}
-      else if(rpm >=8250 && rpm <8750){if(torque*100 > t18){t18 = torque*100;}if(horsepower*100 > h18){h18 = horsepower*100;}}
-      else if(rpm >=8750 && rpm <9250){if(torque*100 > t19){t19 = torque*100;}if(horsepower*100 > h19){h19 = horsepower*100;}}
-      else if(rpm >=9250 && rpm <9750){if(torque*100 > t20){t20 = torque*100;}if(horsepower*100 > h20){h20 = horsepower*100;}}
-      else if(rpm >=9750){if(torque*100 > t21){t21 = torque*100;}if(horsepower*100 > h21){h21 = horsepower*100;}}
-    }
-    
-    if(rpmRange == 0)//1000-5000 RPM
+      lv_label_set_text(ui_chartScreenChartXLabel, "20      25      31      36      41     47      52     57      63     68     73      79      84      89      95     100");      // Calculate bin: 10000 / 31 bins = ~322.5 RPM per bin
+      binIndex = (rpm - 2000) / 258.06f;
+      // Simple noise filter
+      if (rpm > 1900 && rpm < 11000) {
+        // Safety check and Update Bins
+        if(binIndex >= 0 && binIndex < MAX_BINS) 
+        {
+          short currentT = (short)(torque * 100);
+          short currentH = (short)(horsepower * 100);
+      
+          if(currentT > t_bins[binIndex]) t_bins[binIndex] = currentT;
+         if(currentH > h_bins[binIndex]) h_bins[binIndex] = currentH;
+       }
+      }
+    } 
+    else if(rpmRange == 0) // 1000-5000 RPM range
     {
-      lv_label_set_text(ui_chartScreenChartXLabel, "10            14           18           22           26           30           34           38           42           46           50");
-      if(rpm >=900 && rpm <1100){if(torque*100 > t1){t1 = torque*100;}if(horsepower*100 > h1){h1 = horsepower*100;}}
-      else if(rpm >=1100 && rpm <1300){if(torque*100 > t2){t2 = torque*100;}if(horsepower*100 > h2){h2 = horsepower*100;}}
-      else if(rpm >=1300 && rpm <1500){if(torque*100 > t3){t3 = torque*100;}if(horsepower*100 > h3){h3 = horsepower*100;}}
-      else if(rpm >=1500 && rpm <1700){if(torque*100 > t4){t4 = torque*100;}if(horsepower*100 > h4){h4 = horsepower*100;}}
-      else if(rpm >=1700 && rpm <1900){if(torque*100 > t5){t5 = torque*100;}if(horsepower*100 > h5){h5 = horsepower*100;}}
-      else if(rpm >=1900 && rpm <2100){if(torque*100 > t6){t6 = torque*100;}if(horsepower*100 > h6){h6 = horsepower*100;}}
-      else if(rpm >=2100 && rpm <2300){if(torque*100 > t7){t7 = torque*100;}if(horsepower*100 > h7){h7 = horsepower*100;}}
-      else if(rpm >=2300 && rpm <2500){if(torque*100 > t8){t8 = torque*100;}if(horsepower*100 > h8){h8 = horsepower*100;}}
-      else if(rpm >=2500 && rpm <2700){if(torque*100 > t9){t9 = torque*100;}if(horsepower*100 > h9){h9 = horsepower*100;}}
-      else if(rpm >=2700 && rpm <2900){if(torque*100 > t10){t10 = torque*100;}if(horsepower*100 > h10){h10 = horsepower*100;}}
-      else if(rpm >=2900 && rpm <3100){if(torque*100 > t11){t11 = torque*100;}if(horsepower*100 > h11){h11 = horsepower*100;}}
-      else if(rpm >=3100 && rpm <3300){if(torque*100 > t12){t12 = torque*100;}if(horsepower*100 > h12){h12 = horsepower*100;}}
-      else if(rpm >=3300 && rpm <3500){if(torque*100 > t13){t13 = torque*100;}if(horsepower*100 > h13){h13 = horsepower*100;}}
-      else if(rpm >=3500 && rpm <3700){if(torque*100 > t14){t14 = torque*100;}if(horsepower*100 > h14){h14 = horsepower*100;}}
-      else if(rpm >=3700 && rpm <3900){if(torque*100 > t15){t15 = torque*100;}if(horsepower*100 > h15){h15 = horsepower*100;}}
-      else if(rpm >=3900 && rpm <4100){if(torque*100 > t16){t16 = torque*100;}if(horsepower*100 > h16){h16 = horsepower*100;}}
-      else if(rpm >=4100 && rpm <4300){if(torque*100 > t17){t17 = torque*100;}if(horsepower*100 > h17){h17 = horsepower*100;}}
-      else if(rpm >=4300 && rpm <4500){if(torque*100 > t18){t18 = torque*100;}if(horsepower*100 > h18){h18 = horsepower*100;}}
-      else if(rpm >=4500 && rpm <4700){if(torque*100 > t19){t19 = torque*100;}if(horsepower*100 > h19){h19 = horsepower*100;}}
-      else if(rpm >=4700 && rpm <4900){if(torque*100 > t20){t20 = torque*100;}if(horsepower*100 > h20){h20 = horsepower*100;}}
-      else if(rpm >=4900){if(torque*100 > t21){t21 = torque*100;}if(horsepower*100 > h21){h21 = horsepower*100;}}
+      lv_label_set_text(ui_chartScreenChartXLabel, "10      12      15      18      20     23      25     28      31     33     36     38      41      44      47      50");      // Calculate bin: (rpm - 1000) / (4000 / 31)
+      binIndex = (rpm - 1000) / 129.03f;
+      // Simple noise filter
+      if (rpm > 950 && rpm < 6000) {
+        // Safety check and Update Bins
+        if(binIndex >= 0 && binIndex < MAX_BINS) 
+        {
+          short currentT = (short)(torque * 100);
+          short currentH = (short)(horsepower * 100);
+      
+          if(currentT > t_bins[binIndex]) t_bins[binIndex] = currentT;
+         if(currentH > h_bins[binIndex]) h_bins[binIndex] = currentH;
+       }
+      }
     }
 
     lv_timer_handler(); //This line is responsible for the UI doing its work
