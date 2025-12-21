@@ -16,6 +16,12 @@ If you do all of those things, and follow it through, here is what the expected 
 
 ![There is supposed to be a picture here](images/engine_one1.jpg)
 
+![There is supposed to be a picture here](images/dyno_sheet.png)
+
+![There is supposed to be a picture here](images/desktop_chart_example.png)
+
+![There is supposed to be a picture here](images/desktop_application.png)
+
 The finished dyno has a 16"x16" footprint and can be easily transported to track day with your friends, or just live in the corner of your shed not taking up much real estate. It is powered by 5 volts over USB-C, I power mine from one of those cheap portable batteries for charging your phone or what have you.
 
 I honestly couldn't tell you the limits of the dyno, a lot of that would come down to your craftsmanship. It does have two gauge/power ranges, the higher one goes up to 40hp, the low range caps at 20hp. You can also select an RPM range, with low topping out at 5000rpm, and high going to 10,000rpm.
