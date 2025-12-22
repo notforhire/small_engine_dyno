@@ -1,4 +1,4 @@
-//Available pins on 8048S070 are 11, 12, 13, 17, 18
+//Available pins on 8048S070 are 11, 12, 13, 17, 18 Used; 12/Hall Trigger, 17/hx711 clk, 18 hx711 data 
 
 #include <Arduino.h>
 #include <lvgl.h>
@@ -103,6 +103,7 @@ bool runMode = 0;
 bool rpmMet = 0;
 bool brakeOn = 0;
 bool rpmRange = 0;
+bool serialLoggingActive = false;
 //Variables for chart positions
 const int MAX_BINS = 31;
 short t_bins[MAX_BINS] = {0};
@@ -112,7 +113,6 @@ volatile unsigned long lastPulseTime = 0;
 volatile unsigned long pulseDelta = 0;
 const unsigned long MIN_PULSE_DELTA = 3000; // Filter: Ignores > 20,000 RPM (Noise)
 const unsigned long RPM_TIMEOUT = 500000;   // 0.5s without pulse = 0 RPM
-
 void IRAM_ATTR rpm_isr() {
     unsigned long now = micros();
     unsigned long interval = now - lastPulseTime;
@@ -228,6 +228,10 @@ void resetMax(lv_event_t * e)
   maxTorqueRpm = 0;
   maxHorsepower = 0;
   maxHorsepowerRpm = 0;
+
+  // This ensures the UI fields also go to exactly 0.00
+  lv_textarea_set_text(ui_freestyleTorqueField, "0.00");
+  lv_textarea_set_text(ui_freestyleHorsepowerField, "0.00");
 }
 
 //Function name should be explicit enough
@@ -242,7 +246,7 @@ void drawChart(lv_event_t * e)
   if(ui_Chart != NULL) {
     lv_obj_del_async(ui_Chart);
   }
-  
+    
   ui_Chart = lv_chart_create(ui_ChartScreen);
   lv_obj_set_width(ui_Chart, 700);
   lv_obj_set_height(ui_Chart, 325);
@@ -540,10 +544,6 @@ if (millis() - lastUIUpdate > 50) {
         lv_bar_set_value(ui_timeoutBar, (currentMillis - previousMillis)/10, LV_ANIM_OFF);
         lv_obj_clear_flag(ui_runTimeCounter, LV_OBJ_FLAG_HIDDEN);
         lv_label_set_text(ui_runTimeCounter, timeRemaining);
-        Serial.print(torque);
-        Serial.print(" ft/lbs @ ");
-        Serial.print(rpm);
-        Serial.println(" RPM");
       }
     } //End runMode
 
@@ -553,54 +553,43 @@ if (millis() - lastUIUpdate > 50) {
 // Task handle for Core 0. This runs the HX711 reading tasks on the second core of the esp32.
 // Remove the duplicate TaskHandle_t here; it's already at line 135
 void SensorTaskLoop(void * pvParameters) {
-  const int MEDIAN_SIZE = 5;
-  long samples[MEDIAN_SIZE] = {0};
-  int sampleIdx = 0;
+  const int AVG_SIZE = 8; 
+  long readings[AVG_SIZE] = {0};
+  int readIdx = 0;
+  long total = 0;
 
   for (;;) {
     if (scale.is_ready()) {
-      // 1. Collect Raw Reading
-      samples[sampleIdx] = scale.read() / 100;
-      sampleIdx = (sampleIdx + 1) % MEDIAN_SIZE;
+      // 1. Running Average Calculation
+      total = total - readings[readIdx];
+      readings[readIdx] = scale.read() / 100;
+      total = total + readings[readIdx];
+      readIdx = (readIdx + 1) % AVG_SIZE;
 
-      // 2. Median Filter
-      long sorted[MEDIAN_SIZE];
-      memcpy(sorted, samples, sizeof(samples));
-      for (int i = 0; i < MEDIAN_SIZE - 1; i++) {
-        for (int j = i + 1; j < MEDIAN_SIZE; j++) {
-          if (sorted[i] > sorted[j]) {
-            long temp = sorted[i];
-            sorted[i] = sorted[j];
-            sorted[j] = temp;
-          }
-        }
-      }
-      scaleReading = sorted[MEDIAN_SIZE / 2];
+      scaleReading = total / AVG_SIZE;
 
-      // 3. Map to Gauge Position
-      torqueNeedlePos = map(scaleReading, noWeight, calibration, 0, 833);
+      // 2. Map to Needle Steps
+      int rawPos = map(scaleReading, noWeight, calibration, 0, 1250);
 
-      // 4. THE HARD FLOOR: Throw away negatives
-      // This is the direct fix for the negative numbers in your CSV.
-      if (torqueNeedlePos < 0) {
+      // 3. THE 0.25 FT-LB DEADZONE
+      // 15 steps is the "Gate". If the reading is between -15 and +15, we force 0.
+      if (abs(rawPos) <= 15) {
         torqueNeedlePos = 0;
+      } else {
+        torqueNeedlePos = rawPos;
       }
 
-      // 5. Final Math
+      // 4. Final Output Math
+      // This ensures the Python app also sees 0.00 until the threshold is met
       torque = (float)torqueNeedlePos / 62.5f;
       horsepower = (torque * rpm) * 0.00019040365f;
 
-      // 6. Peak Capture
-      if (torque > maxTorque) {
-        maxTorque = torque;
+      // 5. Peak Tracking
+      if (torque > maxTorque) { 
+        maxTorque = torque; 
         maxTorqueRpm = rpm;
       }
-      if (horsepower > maxHorsepower) {
-        maxHorsepower = horsepower;
-        maxHorsepowerRpm = rpm;
-      }
     }
-    // Minimal delay for Task stability
     vTaskDelay(pdMS_TO_TICKS(1)); 
   }
 }
