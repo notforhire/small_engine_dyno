@@ -103,7 +103,6 @@ bool runMode = 0;
 bool rpmMet = 0;
 bool brakeOn = 0;
 bool rpmRange = 0;
-bool serialLoggingActive = false;
 //Variables for chart positions
 const int MAX_BINS = 31;
 short t_bins[MAX_BINS] = {0};
@@ -122,11 +121,6 @@ void IRAM_ATTR rpm_isr() {
         lastPulseTime = now;
     }
 }
-//rpm smoothing
-const int FILTER_SIZE = 8;
-unsigned long pulseBuffer[FILTER_SIZE] = {0};
-int bufferIndex = 0;
-unsigned long pulseSum = 0;
 
 HX711 scale; //Declare scale to call HX711 library
 lv_obj_t * ui_Chart;
@@ -221,16 +215,10 @@ void resetMax(lv_event_t * e)
 //Function name should be explicit enough
 void drawChart(lv_event_t * e)
 {
-  //If we were logging, tell the computer to stop and show the graph
-  if (serialLoggingActive) {
-    Serial.println("EOF"); 
-    serialLoggingActive = false;
-  }
-
   if(ui_Chart != NULL) {
     lv_obj_del_async(ui_Chart);
   }
-    
+  
   ui_Chart = lv_chart_create(ui_ChartScreen);
   lv_obj_set_width(ui_Chart, 700);
   lv_obj_set_height(ui_Chart, 325);
@@ -312,87 +300,49 @@ void rpmRangeSelect(lv_event_t * e)
 //The following fuctions set the Y scale of the graph
 void firstTorqueRange(lv_event_t * e)
 {
-  torqueGraphRange = 1000;
-  horsepowerGraphRange = 1000;
-}
-
-void secondTorqueRange(lv_event_t * e)
-{
   torqueGraphRange = 2000;
   horsepowerGraphRange = 2000;
 }
 
-void thirdTorqueRange(lv_event_t * e)
+void secondTorqueRange(lv_event_t * e)
 {
   torqueGraphRange = 3000;
   horsepowerGraphRange = 3000;
 }
 
-void fourthTorqueRange(lv_event_t * e)
+void thirdTorqueRange(lv_event_t * e)
 {
   torqueGraphRange = 4000;
   horsepowerGraphRange = 4000;
 }
 
-void checkSerialCommands() {
-    while (Serial.available() > 0) {
-        char cmd = Serial.read();
-        if (cmd == 's') {
-            serialLoggingActive = true;
-            Serial.println("READY"); 
-            Serial.flush(); // FORCE the message out to the PC now
-            Serial.println("RPM,Torque,Horsepower"); 
-        } 
-        else if (cmd == 'q') {
-            serialLoggingActive = false;
-        }
-    }
+void fourthTorqueRange(lv_event_t * e)
+{
+  torqueGraphRange = 6000;
+  horsepowerGraphRange = 6000;
 }
 
 void loop()
 {
-    static uint32_t lastUIUpdate = 0;
+    //Read scale and hall sensor, calculate RPM and horsepower, set gauge needle positions
+    // 1. Thread-safe RPM capture
     unsigned long localDelta;
     unsigned long lastTime;
-
-    //Read scale and hall sensor, calculate RPM and horsepower, set gauge needle positions
-    // 1. Thread-safe capture from ISR
     noInterrupts();
     localDelta = pulseDelta;
     lastTime = lastPulseTime;
-    pulseDelta = 0; // Reset so we know if a NEW pulse happened
     interrupts();
 
-    // 2. Timeout Check (Engine stopped)
-    if (micros() - lastTime > RPM_TIMEOUT) {
-        rpm = 0;
-        // Clear buffer so it doesn't "hold" old speed
-        for(int i=0; i<FILTER_SIZE; i++) pulseBuffer[i] = 0;
-        pulseSum = 0;
-    } 
-    // 3. New Pulse Filtering Logic
-    else if (localDelta > MIN_PULSE_DELTA) { 
-        // Subtract the oldest value from the sum, add the new one
-        pulseSum -= pulseBuffer[bufferIndex];
-        pulseBuffer[bufferIndex] = localDelta;
-        pulseSum += pulseBuffer[bufferIndex];
-        
-        bufferIndex = (bufferIndex + 1) % FILTER_SIZE;
-
-        // Calculate RPM based on the average delta
-        unsigned long averageDelta = pulseSum / FILTER_SIZE;
-        if (averageDelta > 0) {
-            rpm = 60000000UL / averageDelta;
-        }
-    }
+    if (micros() - lastTime > RPM_TIMEOUT) rpm = 0;
+    else if (localDelta > 0) rpm = 60000000UL / localDelta;
     
     if (scale.is_ready()) {
       scaleReading = scale.read() / 100;
-      torqueNeedlePos = map(scaleReading, noWeight, calibration, 0, 1000); //there are 2500 steps in the gauge from zero to max. This number is the step expected when hanging the calibration weight. Example: 20lb weight on 1' arm with 40lb max gauge reading 2500/40=62.5 steps/pound 20 pound weight x 62.5=1250
-      if (abs(torqueNeedlePos) < 25) torqueNeedlePos = 0; // Ignore tiny fluctuations at idle
+      torqueNeedlePos = map(scaleReading, noWeight, calibration, 0, 833); //there are 2500 steps in the gauge from zero to max. This number is the step expected when hanging the calibration weight. Example: 20lb weight on 1' arm with 40lb max gauge reading 2500/40=62.5 steps/pound 20 pound weight x 62.5=1250
+      if (abs(torqueNeedlePos) < 20) torqueNeedlePos = 0; // Ignore tiny fluctuations at idle
       horsepowerNeedlePos = (torqueNeedlePos*rpm)/5252;
-      rpmNeedlePos = map(rpm, 0, 10000, 0, 2500);
-      torque = (float)torqueNeedlePos/62.5;
+      rpmNeedlePos = map(rpm, 0, 20000, 0, 2500);
+      torque = (float)torqueNeedlePos/41.66;
       horsepower = ((torque*rpm)/5252);
 
       //If horsepower or torque are higher than current max set to max
@@ -407,7 +357,7 @@ void loop()
        maxHorsepowerRpm = rpm;
      }
     }
-  if (millis() - lastUIUpdate > 50) {
+
     //Convert values to something human readable for display
     itoa(maxTorqueRpm, maxTorqueRpmVal, 10);
     itoa(maxHorsepowerRpm, maxHorsepowerRpmVal, 10);
@@ -447,64 +397,6 @@ void loop()
     lv_label_set_text(ui_dynoRunMaxTorqueField, maxTorqueVal);
     lv_label_set_text(ui_dynoRunTorqueMaxRpmField, maxTorqueRpmVal);
 
-    lastUIUpdate = millis();
-  }
-
-    // Fill bins for chart array
-    int binIndex = -1;
-
-    if(rpmRange == 1) // 0-10000 RPM range
-    { 
-      lv_label_set_text(ui_chartScreenChartXLabel, "20      25      31      36      41     47      52     57      63     68     73      79      84      89      95     100");      // Calculate bin: 10000 / 31 bins = ~322.5 RPM per bin
-      binIndex = (rpm - 2000) / 258.06f;
-      // Simple noise filter
-      if (rpm > 1900 && rpm < 11000) {
-        // Safety check and Update Bins
-        if(binIndex >= 0 && binIndex < MAX_BINS) 
-        {
-          short currentT = (short)(torque * 100);
-          short currentH = (short)(horsepower * 100);
-      
-          if(currentT > t_bins[binIndex]) t_bins[binIndex] = currentT;
-         if(currentH > h_bins[binIndex]) h_bins[binIndex] = currentH;
-       }
-      }
-    } 
-    else if(rpmRange == 0) // 1000-5000 RPM range
-    {
-      lv_label_set_text(ui_chartScreenChartXLabel, "10      12      15      18      20     23      25     28      31     33     36     38      41      44      47      50");      // Calculate bin: (rpm - 1000) / (4000 / 31)
-      binIndex = (rpm - 1000) / 129.03f;
-      // Simple noise filter
-      if (rpm > 950 && rpm < 6000) {
-        // Safety check and Update Bins
-        if(binIndex >= 0 && binIndex < MAX_BINS) 
-        {
-          short currentT = (short)(torque * 100);
-          short currentH = (short)(horsepower * 100);
-      
-          if(currentT > t_bins[binIndex]) t_bins[binIndex] = currentT;
-         if(currentH > h_bins[binIndex]) h_bins[binIndex] = currentH;
-       }
-      }
-    }
-
-    checkSerialCommands(); // Call the listener every loop
-
-    // Only log if we are in runMode AND the computer has requested it
-    if (serialLoggingActive) {
-        static uint32_t lastLogTime = 0;
-        // CSV Output: RPM, Torque, Horsepower
-        // Log at 10Hz (every 100ms) to keep data manageable
-        if (millis() - lastLogTime > 100) {
-            Serial.print(rpm);
-            Serial.print(",");
-            Serial.print(torque);
-            Serial.print(",");
-            Serial.println(horsepower);
-            lastLogTime = millis();
-        }
-    }
-
     //runMode stuff runMode is the main dyno run function. It is started when we press the dynoStartButton on the dynoRunScreen.
     if(runMode == 1) 
     //If it is in runMode
@@ -540,8 +432,53 @@ void loop()
         lv_bar_set_value(ui_timeoutBar, (currentMillis - previousMillis)/10, LV_ANIM_OFF);
         lv_obj_clear_flag(ui_runTimeCounter, LV_OBJ_FLAG_HIDDEN);
         lv_label_set_text(ui_runTimeCounter, timeRemaining);
+        Serial.print(torque);
+        Serial.print(" ft/lbs @ ");
+        Serial.print(rpm);
+        Serial.println(" RPM");
       }
     } //End runMode
+
+    // Fill bins for chart array
+    int binIndex = -1;
+
+    if(rpmRange == 1) // 2000-20000 RPM range
+    { 
+      lv_label_set_text(ui_chartScreenChartXLabel, "20      32      44      56      68     80      92     104     113    128    140    152    164    176   188   200");      // Calculate bin: 10000 / 31 bins = ~322.5 RPM per bin
+      binIndex = (rpm - 2000) / 580.64f;
+      // Simple noise filter
+      if (rpm > 1900 && rpm < 21000) {
+        // Safety check and Update Bins
+        if(binIndex >= 0 && binIndex < MAX_BINS) 
+        {
+          short currentT = (short)(torque * 100);
+          short currentH = (short)(horsepower * 100);
+      
+          if(currentT > t_bins[binIndex]) t_bins[binIndex] = currentT;
+         if(currentH > h_bins[binIndex]) h_bins[binIndex] = currentH;
+       }
+      }
+    } 
+    else if(rpmRange == 0) // 2000-10000 RPM range
+    {
+      lv_label_set_text(ui_chartScreenChartXLabel, "20      25      31      36      41     47      52     57      63     68     73      79      84      89      95     100");      // Calculate bin: (rpm - 1000) / (4000 / 31)
+      binIndex = (rpm - 2000) / 258.06f;
+      // Simple noise filter
+      if (rpm > 1900 && rpm < 6000) {
+        // Safety check and Update Bins
+        if(binIndex >= 0 && binIndex < MAX_BINS) 
+        {
+          short currentT = (short)(torque * 100);
+          short currentH = (short)(horsepower * 100);
+      
+          if(currentT > t_bins[binIndex]) t_bins[binIndex] = currentT;
+         if(currentH > h_bins[binIndex]) h_bins[binIndex] = currentH;
+       }
+      }
+    }
+
+    
+
 
     lv_timer_handler(); //This line is responsible for the UI doing its work
 }
