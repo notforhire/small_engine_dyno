@@ -122,14 +122,13 @@ void IRAM_ATTR rpm_isr() {
     }
 }
 //rpm smoothing
-const int FILTER_SIZE = 8;
+const int FILTER_SIZE = 3;
 unsigned long pulseBuffer[FILTER_SIZE] = {0};
 int bufferIndex = 0;
 unsigned long pulseSum = 0;
 
 HX711 scale; //Declare scale to call HX711 library
 lv_obj_t * ui_Chart;
-extern lv_obj_t * ui_Chart;
 // Forward declarations for FreeRTOS Task
 void SensorTaskLoop(void * pvParameters); 
 TaskHandle_t SensorTask;
@@ -411,13 +410,11 @@ void sendRawDebugData(long raw, int needle, float tq) {
   Serial.printf("DEBUG:%ld,%d,%.4f\n", raw, needle, tq);
 }
 
-void loop()
-{
+void loop() {
     static uint32_t lastUIUpdate = 0;
     unsigned long localDelta;
     unsigned long lastTime;
 
-    //Read scale and hall sensor, calculate RPM and horsepower, set gauge needle positions
     // 1. Thread-safe capture from ISR
     noInterrupts();
     localDelta = pulseDelta;
@@ -448,19 +445,22 @@ void loop()
         }
     }
     
-    
-if (millis() - lastUIUpdate > 50) {
-    updateDynoUI(); // Keep the loop clean
-    lastUIUpdate = millis();
-}
+    rpmNeedlePos = map(rpm, 0, 10000, 0, 2500);
+
+    if (millis() - lastUIUpdate > 50) {
+        updateDynoUI(); // Keep the loop clean
+        lastUIUpdate = millis();
+    }
 
     // Fill bins for chart array
     int binIndex = -1;
 
+    // Fill chart array
     if(rpmRange == 1) // 0-10000 RPM range
     { 
       lv_label_set_text(ui_chartScreenChartXLabel, "20      25      31      36      41     47      52     57      63     68     73      79      84      89      95     100");      // Calculate bin: 10000 / 31 bins = ~322.5 RPM per bin
-      binIndex = (rpm - 2000) / 258.06f;
+      float range1_width = (10000.0f - 2000.0f) / (float)MAX_BINS; 
+      binIndex = (rpm - 2000) / range1_width;
       // Simple noise filter
       if (rpm > 1900 && rpm < 11000) {
         // Safety check and Update Bins
@@ -470,14 +470,15 @@ if (millis() - lastUIUpdate > 50) {
           short currentH = (short)(horsepower * 100);
       
           if(currentT > t_bins[binIndex]) t_bins[binIndex] = currentT;
-         if(currentH > h_bins[binIndex]) h_bins[binIndex] = currentH;
-       }
+          if(currentH > h_bins[binIndex]) h_bins[binIndex] = currentH;
+        }
       }
     } 
     else if(rpmRange == 0) // 1000-5000 RPM range
     {
       lv_label_set_text(ui_chartScreenChartXLabel, "10      12      15      18      20     23      25     28      31     33     36     38      41      44      47      50");      // Calculate bin: (rpm - 1000) / (4000 / 31)
-      binIndex = (rpm - 1000) / 129.03f;
+      float range0_width = (5000.0f - 1000.0f) / (float)MAX_BINS;
+      binIndex = (rpm - 1000) / range0_width;
       // Simple noise filter
       if (rpm > 950 && rpm < 6000) {
         // Safety check and Update Bins
@@ -487,8 +488,8 @@ if (millis() - lastUIUpdate > 50) {
           short currentH = (short)(horsepower * 100);
       
           if(currentT > t_bins[binIndex]) t_bins[binIndex] = currentT;
-         if(currentH > h_bins[binIndex]) h_bins[binIndex] = currentH;
-       }
+          if(currentH > h_bins[binIndex]) h_bins[binIndex] = currentH;
+        }
       }
     }
 
@@ -496,14 +497,15 @@ if (millis() - lastUIUpdate > 50) {
 
     // Only log if the computer has requested it
     if (serialLoggingActive) {
-    static uint32_t lastLogTime = 0;
-    if (millis() - lastLogTime >= 20) {
-        Serial.print(rpm);
-        Serial.print(",");
-        Serial.print(torque, 3); 
-        Serial.print(",");
-        Serial.println(horsepower, 3);
-        lastLogTime = millis();
+      static uint32_t lastLogTime = 0;
+      if (millis() - lastLogTime >= 50) {
+          Serial.print(rpm);
+         Serial.print(",");
+          Serial.print(torque, 3); 
+          Serial.print(",");
+          Serial.println(horsepower, 3);
+          lastLogTime = millis();
+      }
     }
 
     //runMode stuff runMode is the main dyno run function. It is started when we press the dynoStartButton on the dynoRunScreen.
@@ -565,27 +567,17 @@ void SensorTaskLoop(void * pvParameters) {
 
       scaleReading = total / AVG_SIZE;
 
-      // 2. CALCULATE TORQUE FIRST (The "Right" Way)
-      // We map the raw reading directly to a float torque value.
-      // 1250 steps / 62.5 = 20.0 lbs. So we map 0 to 1250 raw -> 0 to 20.0 torque.
-      float rawTorque = map(scaleReading, noWeight, calibration, 0, 20000) / 1000.0f;
+      // Calculate torque
+      // 1250 steps / 62.5 = 20.0 lbs. So we map 0 to 1250 raw -> 0 to 20.0 torque
+      torque = map(scaleReading, noWeight, calibration, 0, 20000) / 1000.0f;
 
-      // 3. APPLY THE 0.25 FT-LB DEADZONE
-      // If torque is less than 0.25, force it to absolute zero.
-      if (abs(rawTorque) <= 0.25f) {
-        torque = 0.0f;
-      } else {
-        torque = rawTorque;
-      }
+      // Calculate needle position from torque
+      // Now the needle just follows the physics. 20lbs * 62.5 = 1250 steps
+      torqueNeedlePos = (long)(torque * 62.5f);
 
-      // 4. CALCULATE NEEDLE POSITION FROM TORQUE
-      // Now the needle just follows the physics. 20lbs * 62.5 = 1250 steps.
-      torqueNeedlePos = (int)(torque * 62.5f);
-
-      // 5. Horsepower and Peaks
+      // Set horsepower and torque peaks
       horsepower = (torque * rpm) * 0.00019040365f;
 
-      // 5. Peak Tracking
       if (torque > maxTorque) { 
         maxTorque = torque; 
         maxTorqueRpm = rpm;
