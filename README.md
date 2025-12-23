@@ -1,3 +1,5 @@
+Pit Row Dyno: Open Source DIY Dyno electronics and data acquisition for engine testing.
+
 I'm not going to hold your hand, but if you are capable of finishing this project on your own you don't need me to.
 
 I'm no expert at any one part of this project, so don't judge the code structure or the CAD file too harshly.
