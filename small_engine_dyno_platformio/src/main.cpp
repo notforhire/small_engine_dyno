@@ -494,19 +494,16 @@ if (millis() - lastUIUpdate > 50) {
 
     checkSerialCommands(); // Call the listener every loop
 
-    // Only log if we are in runMode AND the computer has requested it
+    // Only log if the computer has requested it
     if (serialLoggingActive) {
-        static uint32_t lastLogTime = 0;
-        // CSV Output: RPM, Torque, Horsepower
-        // Log at 10Hz (every 100ms) to keep data manageable
-        if (millis() - lastLogTime > 100) {
-            Serial.print(rpm);
-            Serial.print(",");
-            Serial.print(torque);
-            Serial.print(",");
-            Serial.println(horsepower);
-            lastLogTime = millis();
-        }
+    static uint32_t lastLogTime = 0;
+    if (millis() - lastLogTime >= 20) {
+        Serial.print(rpm);
+        Serial.print(",");
+        Serial.print(torque, 3); 
+        Serial.print(",");
+        Serial.println(horsepower, 3);
+        lastLogTime = millis();
     }
 
     //runMode stuff runMode is the main dyno run function. It is started when we press the dynoStartButton on the dynoRunScreen.
@@ -568,26 +565,34 @@ void SensorTaskLoop(void * pvParameters) {
 
       scaleReading = total / AVG_SIZE;
 
-      // 2. Map to Needle Steps
-      int rawPos = map(scaleReading, noWeight, calibration, 0, 1250);
+      // 2. CALCULATE TORQUE FIRST (The "Right" Way)
+      // We map the raw reading directly to a float torque value.
+      // 1250 steps / 62.5 = 20.0 lbs. So we map 0 to 1250 raw -> 0 to 20.0 torque.
+      float rawTorque = map(scaleReading, noWeight, calibration, 0, 20000) / 1000.0f;
 
-      // 3. THE 0.25 FT-LB DEADZONE
-      // 15 steps is the "Gate". If the reading is between -15 and +15, we force 0.
-      if (abs(rawPos) <= 15) {
-        torqueNeedlePos = 0;
+      // 3. APPLY THE 0.25 FT-LB DEADZONE
+      // If torque is less than 0.25, force it to absolute zero.
+      if (abs(rawTorque) <= 0.25f) {
+        torque = 0.0f;
       } else {
-        torqueNeedlePos = rawPos;
+        torque = rawTorque;
       }
 
-      // 4. Final Output Math
-      // This ensures the Python app also sees 0.00 until the threshold is met
-      torque = (float)torqueNeedlePos / 62.5f;
+      // 4. CALCULATE NEEDLE POSITION FROM TORQUE
+      // Now the needle just follows the physics. 20lbs * 62.5 = 1250 steps.
+      torqueNeedlePos = (int)(torque * 62.5f);
+
+      // 5. Horsepower and Peaks
       horsepower = (torque * rpm) * 0.00019040365f;
 
       // 5. Peak Tracking
       if (torque > maxTorque) { 
         maxTorque = torque; 
         maxTorqueRpm = rpm;
+      }
+      if (horsepower > maxHorsepower) {
+        maxHorsepower = horsepower;
+        maxHorsepowerRpm = rpm;
       }
     }
     vTaskDelay(pdMS_TO_TICKS(1)); 
