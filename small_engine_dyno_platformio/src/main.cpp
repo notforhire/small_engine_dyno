@@ -8,18 +8,18 @@
 #define TFT_BL 2 //#define GFX_BL DF_GFX_BL (backlight pin)
 
 Arduino_ESP32RGBPanel *bus = new Arduino_ESP32RGBPanel(
-    GFX_NOT_DEFINED /* CS */, GFX_NOT_DEFINED /* SCK */, GFX_NOT_DEFINED /* SDA */,
-    41 /* DE */, 40 /* VSYNC */, 39 /* HSYNC */, 42 /* PCLK */,
-    14 /* R0 */, 21 /* R1 */, 47 /* R2 */, 48 /* R3 */, 45 /* R4 */,
-    9 /* G0 */, 46 /* G1 */, 3 /* G2 */, 8 /* G3 */, 16 /* G4 */, 1 /* G5 */,
-    15 /* B0 */, 7 /* B1 */, 6 /* B2 */, 5 /* B3 */, 4 /* B4 */
+  GFX_NOT_DEFINED /* CS */, GFX_NOT_DEFINED /* SCK */, GFX_NOT_DEFINED /* SDA */,
+  41 /* DE */, 40 /* VSYNC */, 39 /* HSYNC */, 42 /* PCLK */,
+  14 /* R0 */, 21 /* R1 */, 47 /* R2 */, 48 /* R3 */, 45 /* R4 */,
+  9 /* G0 */, 46 /* G1 */, 3 /* G2 */, 8 /* G3 */, 16 /* G4 */, 1 /* G5 */,
+  15 /* B0 */, 7 /* B1 */, 6 /* B2 */, 5 /* B3 */, 4 /* B4 */
 );
 
 Arduino_RPi_DPI_RGBPanel *gfx = new Arduino_RPi_DPI_RGBPanel(
-    bus,
-    800 /* width */, 0 /* hsync_polarity */, 210 /* hsync_front_porch */, 30 /* hsync_pulse_width */, 16 /* hsync_back_porch */,
-    480 /* height */, 0 /* vsync_polarity */, 22 /* vsync_front_porch */, 13 /* vsync_pulse_width */, 10 /* vsync_back_porch */,
-    1 /* pclk_active_neg */, 12000000 /* prefer_speed */, true /* auto_flush */
+  bus,
+  800 /* width */, 0 /* hsync_polarity */, 210 /* hsync_front_porch */, 30 /* hsync_pulse_width */, 16 /* hsync_back_porch */,
+  480 /* height */, 0 /* vsync_polarity */, 22 /* vsync_front_porch */, 13 /* vsync_pulse_width */, 10 /* vsync_back_porch */,
+  1 /* pclk_active_neg */, 12000000 /* prefer_speed */, true /* auto_flush */
 );
 
 #include "touch.h"
@@ -34,8 +34,8 @@ static lv_disp_drv_t disp_drv;
 //Display flushing
 void my_disp_flush( lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p )
 {
-    uint32_t w = (area->x2 - area->x1 + 1);
-    uint32_t h = (area->y2 - area->y1 + 1);
+  uint32_t w = (area->x2 - area->x1 + 1);
+  uint32_t h = (area->y2 - area->y1 + 1);
 
   #if (LV_COLOR_16_SWAP != 0)
     gfx->draw16bitBeRGBBitmap(area->x1, area->y1, (uint16_t *)&color_p->full, w, h);
@@ -49,25 +49,21 @@ void my_disp_flush( lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *colo
 //Read the touchpad
 void my_touchpad_read( lv_indev_drv_t * indev_driver, lv_indev_data_t * data )
 {
-    if (touch_has_signal())
-    {
-      if (touch_touched())
-      {
-        data->state = LV_INDEV_STATE_PR;
+  if (touch_has_signal()) {
+    if (touch_touched()) {
+      data->state = LV_INDEV_STATE_PR;
 
-        //Set the coordinates
-        data->point.x = touch_last_x;
-        data->point.y = touch_last_y;
-      }
-      else if (touch_released())
-      {
-        data->state = LV_INDEV_STATE_REL;
-      }
+      //Set the coordinates
+      data->point.x = touch_last_x;
+      data->point.y = touch_last_y;
     }
-    else
-    {
+    else if (touch_released()) {
       data->state = LV_INDEV_STATE_REL;
     }
+  }
+  else {
+    data->state = LV_INDEV_STATE_REL;
+  }
 }
 
 //Global
@@ -76,14 +72,14 @@ void my_touchpad_read( lv_indev_drv_t * indev_driver, lv_indev_data_t * data )
 #define hallPin 12 // Hall sensor at pin 5
 float maxHorsepower = 0; // Just what you'd think, variable to store highest horsepower seen since reset or during run
 float maxTorque = 0; //Again, pretty obvious variable
-float horsepower; // Declare horsepower variable to be calculated
-float torque; // Declare torque variable
+volatile float horsepower; // Declare horsepower variable to be calculated
+volatile float torque; // Declare torque variable
 float duration; // Declare time variable for engine RPM calculation
 long previousMillis = 0; //Declare a time variable to use for the runMode
 long runTime = 10000;  //The runMode will last for 10 seconds
 long torqueNeedlePos = 0; // Declare torqueNeedlePos variable to rotate torque gauge needles
-int rpm; // Declare variable to store engine RPM
-int scaleReading; //Declare varible for raw scale data
+volatile int rpm; // Declare variable to store engine RPM
+volatile int scaleReading; //Declare varible for raw scale data
 int horsepowerNeedlePos = 0; // Declare horsepowerNeedlePos variable to rotate horsepower gauge needles
 int rpmNeedlePos = 0; // Declare rpmNeedlePos variable to rotate RPM gauge needles
 int noWeight; // The varaible for storing the scale output when at zero weight used for calibration
@@ -104,31 +100,40 @@ bool rpmMet = 0;
 bool brakeOn = 0;
 bool rpmRange = 0;
 bool serialLoggingActive = false;
-//Variables for chart positions
-const int MAX_BINS = 31;
-short t_bins[MAX_BINS] = {0};
-short h_bins[MAX_BINS] = {0};
 //variables for rpm reading
 volatile unsigned long lastPulseTime = 0;
 volatile unsigned long pulseDelta = 0;
 const unsigned long MIN_PULSE_DELTA = 3000; // Filter: Ignores > 20,000 RPM (Noise)
-const unsigned long RPM_TIMEOUT = 500000;   // 0.5s without pulse = 0 RPM
-void IRAM_ATTR rpm_isr() {
-    unsigned long now = micros();
-    unsigned long interval = now - lastPulseTime;
-    if (interval > MIN_PULSE_DELTA) {
-        pulseDelta = interval;
-        lastPulseTime = now;
-    }
-}
+const unsigned long RPM_TIMEOUT = 200000;   // 0.5s without pulse = 0 RPM
+// --- MECHANICAL CONFIGURATION ---
+const float PRIMARY_REDUCTION = 1.0f;   // Crank to input shaft
+const float GEAR_RATIO = 1.0f;        // Transmission gear ratio
+const float FINAL_DRIVE = 10.0f;         // Output to dyno shaft
+const int   MAGNET_COUNT = 1;           // Recommended for slow shafts
+// Combined total reduction factor
+const float ENGINE_TO_SHAFT_RATIO = PRIMARY_REDUCTION * GEAR_RATIO * FINAL_DRIVE;
 //rpm smoothing
 const int FILTER_SIZE = 3;
 unsigned long pulseBuffer[FILTER_SIZE] = {0};
 int bufferIndex = 0;
 unsigned long pulseSum = 0;
-
 HX711 scale; //Declare scale to call HX711 library
 lv_obj_t * ui_Chart;
+// --- Data resolution for chart positions
+#define MAX_BINS 100 // Increased from 31 for higher resolution
+volatile short t_bins[MAX_BINS] = {0};
+volatile short h_bins[MAX_BINS] = {0};
+int lastBinIndex = -1; // Important for interpolation
+
+void IRAM_ATTR rpm_isr() {
+  unsigned long now = micros();
+  unsigned long interval = now - lastPulseTime;
+  if (interval > MIN_PULSE_DELTA) {
+    pulseDelta = interval;
+    lastPulseTime = now;
+  }
+}
+
 // Forward declarations for FreeRTOS Task
 void SensorTaskLoop(void * pvParameters); 
 TaskHandle_t SensorTask;
@@ -186,14 +191,14 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(hallPin), rpm_isr, FALLING);
 
   // Create the sensor task on Core 0
-    xTaskCreatePinnedToCore(
-        SensorTaskLoop,   /* Task function */
-        "SensorTask",     /* Name of task */
-        10000,            /* Stack size in words */
-        NULL,             /* Task input parameter */
-        1,                /* Priority of the task */
-        &SensorTask,      /* Task handle */
-        0);               /* Core 0 */
+  xTaskCreatePinnedToCore(
+    SensorTaskLoop,   /* Task function */
+    "SensorTask",     /* Name of task */
+    10000,            /* Stack size in words */
+    NULL,             /* Task input parameter */
+    1,                /* Priority of the task */
+    &SensorTask,      /* Task handle */
+    0);               /* Core 0 */
 }
 
 //Function to zero out scale
@@ -285,17 +290,15 @@ void gaugeSelect(lv_event_t * e)
 {
   lv_event_code_t event_code = lv_event_get_code(e);
   lv_obj_t * target = lv_event_get_target(e);
-  if(event_code == LV_EVENT_VALUE_CHANGED) 
-  {
+  if(event_code == LV_EVENT_VALUE_CHANGED) {
 	  bool state = lv_obj_has_state(target, LV_STATE_CHECKED);
-    if(state == 0) //0-40
-    {
+    if(state == 0) {//0-40
       lv_obj_add_flag(ui_freestyleSmallTorqueGauge, LV_OBJ_FLAG_HIDDEN);
       lv_obj_add_flag(ui_freestyleSmallHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
       lv_obj_clear_flag(ui_freestyleTorqueGauge, LV_OBJ_FLAG_HIDDEN);
       lv_obj_clear_flag(ui_freestyleHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
-    }else if(state == 1) //0-20
-    {
+    }
+    else if(state == 1) {//0-20
       lv_obj_add_flag(ui_freestyleTorqueGauge, LV_OBJ_FLAG_HIDDEN);
       lv_obj_add_flag(ui_freestyleHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
       lv_obj_clear_flag(ui_freestyleSmallTorqueGauge, LV_OBJ_FLAG_HIDDEN);
@@ -309,15 +312,13 @@ void rpmRangeSelect(lv_event_t * e)
 {
   lv_event_code_t event_code = lv_event_get_code(e);
   lv_obj_t * target = lv_event_get_target(e);
-  if(event_code == LV_EVENT_VALUE_CHANGED) 
-  {
+  if(event_code == LV_EVENT_VALUE_CHANGED) {
 	  bool state = lv_obj_has_state(target, LV_STATE_CHECKED);
-    if(state == 0)
-    {
+    if(state == 0) {
       rpmRange = 0; //1000-5000 RPM
       Serial.println(rpmRange);
-    }else if(state == 1)
-    {
+    }
+    else if(state == 1) {
       rpmRange = 1; //0-10000 RPM
       Serial.println(rpmRange);
     }
@@ -350,59 +351,59 @@ void fourthTorqueRange(lv_event_t * e)
 }
 
 void checkSerialCommands() {
-    while (Serial.available() > 0) {
-        char cmd = Serial.read();
-        if (cmd == 's') {
-            serialLoggingActive = true;
-            Serial.println("READY"); 
-            Serial.flush(); // FORCE the message out to the PC now
-            Serial.println("RPM,Torque,Horsepower"); 
-        } 
-        else if (cmd == 'q') {
-            serialLoggingActive = false;
-        }
+  while (Serial.available() > 0) {
+    char cmd = Serial.read();
+    if (cmd == 's') {
+      serialLoggingActive = true;
+      Serial.println("READY"); 
+      Serial.flush(); // FORCE the message out to the PC now
+      Serial.println("RPM,Torque,Horsepower"); 
+    } 
+    else if (cmd == 'q') {
+      serialLoggingActive = false;
     }
+  }
 }
 
 void updateDynoUI() {
-    //Convert values to something human readable for display
-    itoa(maxTorqueRpm, maxTorqueRpmVal, 10);
-    itoa(maxHorsepowerRpm, maxHorsepowerRpmVal, 10);
-    dtostrf(maxTorque, 2, 2, maxTorqueVal);
-    dtostrf(maxHorsepower, 2, 2, maxHorsepowerVal);
+  //Convert values to something human readable for display
+  itoa(maxTorqueRpm, maxTorqueRpmVal, 10);
+  itoa(maxHorsepowerRpm, maxHorsepowerRpmVal, 10);
+  dtostrf(maxTorque, 2, 2, maxTorqueVal);
+  dtostrf(maxHorsepower, 2, 2, maxHorsepowerVal);
 
-    //Set needle position for all torque gauges
-    lv_img_set_angle(ui_dynoRunTorqueGaugeNeedle, torqueNeedlePos);
-    lv_img_set_angle(ui_freestyleTorqueGaugeNeedle, torqueNeedlePos);
-    lv_img_set_angle(ui_calibrationGaugeNeedle, torqueNeedlePos);
-    lv_img_set_angle(ui_freestyleSmallTorqueGaugeNeedle, torqueNeedlePos*2);
+  //Set needle position for all torque gauges
+  lv_img_set_angle(ui_dynoRunTorqueGaugeNeedle, torqueNeedlePos);
+  lv_img_set_angle(ui_freestyleTorqueGaugeNeedle, torqueNeedlePos);
+  lv_img_set_angle(ui_calibrationGaugeNeedle, torqueNeedlePos);
+  lv_img_set_angle(ui_freestyleSmallTorqueGaugeNeedle, torqueNeedlePos*2);
 
-    //Set needle position for all horsepower gauges
-    lv_img_set_angle(ui_dynoRunHorsepowerGaugeNeedle, horsepowerNeedlePos);
-    lv_img_set_angle(ui_freestyleHorsepowerGaugeNeedle, horsepowerNeedlePos);
-    lv_img_set_angle(ui_freestyleSmallHorsepowerGaugeNeedle, horsepowerNeedlePos*2);
+  //Set needle position for all horsepower gauges
+  lv_img_set_angle(ui_dynoRunHorsepowerGaugeNeedle, horsepowerNeedlePos);
+  lv_img_set_angle(ui_freestyleHorsepowerGaugeNeedle, horsepowerNeedlePos);
+  lv_img_set_angle(ui_freestyleSmallHorsepowerGaugeNeedle, horsepowerNeedlePos*2);
 
-    //Set needle position for RPM gauges
-    lv_img_set_angle(ui_freestyleRpmGaugeNeedle, rpmNeedlePos);
-    lv_img_set_angle(ui_dynoRunRpmGaugeNeedle, rpmNeedlePos);
+  //Set needle position for RPM gauges
+  lv_img_set_angle(ui_freestyleRpmGaugeNeedle, rpmNeedlePos);
+  lv_img_set_angle(ui_dynoRunRpmGaugeNeedle, rpmNeedlePos);
 
-    //Fill torque horsepower and RPM fields of freestyle screen
-    lv_textarea_set_text(ui_freestyleTorqueField, maxTorqueVal);
-    lv_textarea_set_text(ui_freestyleTorqueRpmField, maxTorqueRpmVal);
-    lv_textarea_set_text(ui_freestyleHorsepowerField, maxHorsepowerVal);
-    lv_textarea_set_text(ui_freestyleHorsepowerRpmField, maxTorqueRpmVal);
+  //Fill torque horsepower and RPM fields of freestyle screen
+  lv_textarea_set_text(ui_freestyleTorqueField, maxTorqueVal);
+  lv_textarea_set_text(ui_freestyleTorqueRpmField, maxTorqueRpmVal);
+  lv_textarea_set_text(ui_freestyleHorsepowerField, maxHorsepowerVal);
+  lv_textarea_set_text(ui_freestyleHorsepowerRpmField, maxTorqueRpmVal);
 
-    //Fill max fields of chart screen
-    lv_textarea_set_text(ui_chartScreenMaxTorqueRpmField, maxTorqueRpmVal);
-    lv_textarea_set_text(ui_chartScreenMaxTorqueField, maxTorqueVal);
-    lv_textarea_set_text(ui_chartScreenMaxHpRpmField, maxHorsepowerRpmVal);
-    lv_textarea_set_text(ui_chartScreenMaxHpField, maxHorsepowerVal);
+  //Fill max fields of chart screen
+  lv_textarea_set_text(ui_chartScreenMaxTorqueRpmField, maxTorqueRpmVal);
+  lv_textarea_set_text(ui_chartScreenMaxTorqueField, maxTorqueVal);
+  lv_textarea_set_text(ui_chartScreenMaxHpRpmField, maxHorsepowerRpmVal);
+  lv_textarea_set_text(ui_chartScreenMaxHpField, maxHorsepowerVal);
     
-    //Fill max fields of run screen
-    lv_label_set_text(ui_dynoRunMaxHorsepowerField, maxHorsepowerVal);
-    lv_label_set_text(ui_dynoRunHorsepowerMaxRpmField, maxHorsepowerRpmVal);
-    lv_label_set_text(ui_dynoRunMaxTorqueField, maxTorqueVal);
-    lv_label_set_text(ui_dynoRunTorqueMaxRpmField, maxTorqueRpmVal);
+  //Fill max fields of run screen
+  lv_label_set_text(ui_dynoRunMaxHorsepowerField, maxHorsepowerVal);
+  lv_label_set_text(ui_dynoRunHorsepowerMaxRpmField, maxHorsepowerRpmVal);
+  lv_label_set_text(ui_dynoRunMaxTorqueField, maxTorqueVal);
+  lv_label_set_text(ui_dynoRunTorqueMaxRpmField, maxTorqueRpmVal);
 }
 
 void sendRawDebugData(long raw, int needle, float tq) {
@@ -411,133 +412,151 @@ void sendRawDebugData(long raw, int needle, float tq) {
 }
 
 void loop() {
-    static uint32_t lastUIUpdate = 0;
-    unsigned long localDelta;
-    unsigned long lastTime;
+  static uint32_t lastUIUpdate = 0;
+  unsigned long localDelta;
+  unsigned long lastTime;
+  static unsigned long lastValidDelta = 0;
+  const float MAX_RPM_CHANGE_FACTOR = 1.6f; // Limits RPM change to 50% per pulse
 
-    // 1. Thread-safe capture from ISR
-    noInterrupts();
-    localDelta = pulseDelta;
-    lastTime = lastPulseTime;
-    pulseDelta = 0; // Reset so we know if a NEW pulse happened
-    interrupts();
+  // 1. Thread-safe capture from ISR
+  noInterrupts();
+  localDelta = pulseDelta;
+  lastTime = lastPulseTime;
+  interrupts();
 
-    // 2. Timeout Check (Engine stopped)
-    if (micros() - lastTime > RPM_TIMEOUT) {
-        rpm = 0;
-        // Clear buffer so it doesn't "hold" old speed
-        for(int i=0; i<FILTER_SIZE; i++) pulseBuffer[i] = 0;
-        pulseSum = 0;
-    } 
-    // 3. New Pulse Filtering Logic
-    else if (localDelta > MIN_PULSE_DELTA) { 
-        // Subtract the oldest value from the sum, add the new one
-        pulseSum -= pulseBuffer[bufferIndex];
-        pulseBuffer[bufferIndex] = localDelta;
-        pulseSum += pulseBuffer[bufferIndex];
+  // 2. Timeout Check (Engine stopped)
+  if (micros() - lastTime > RPM_TIMEOUT) {
+    rpm = 0;
+    lastValidDelta = 0;
+    lastBinIndex = -1;  // Reset the chart interpolation pointer
+    // Clear buffer so it doesn't "hold" old speed
+    noInterrupts(); pulseDelta = 0; interrupts();
+  } 
+  // 3. New Pulse Filtering Logic
+  else if (localDelta > MIN_PULSE_DELTA) { 
+    noInterrupts(); pulseDelta = 0; interrupts();
+
+    bool isSpike = false;
+    if (lastValidDelta != 0) {
+      // If the new pulse is too short (way faster) or too long (way slower)
+      if (localDelta < (lastValidDelta / MAX_RPM_CHANGE_FACTOR) || localDelta > (lastValidDelta * MAX_RPM_CHANGE_FACTOR)) {
+        isSpike = true; 
+      }
+    }
+
+    if (!isSpike || lastValidDelta == 0) {
+      lastValidDelta = localDelta;
+      pulseSum -= pulseBuffer[bufferIndex];
+      pulseBuffer[bufferIndex] = localDelta;
+      pulseSum += pulseBuffer[bufferIndex];
+      bufferIndex = (bufferIndex + 1) % FILTER_SIZE;
+
+      unsigned long averageDelta = pulseSum / FILTER_SIZE;
+
+      if (averageDelta > 0) {
+        // Calculate SHAFT RPM first
+        float shaftRpm = (60000000.0f / (float)averageDelta) / (float)MAGNET_COUNT;
         
-        bufferIndex = (bufferIndex + 1) % FILTER_SIZE;
-
-        // Calculate RPM based on the average delta
-        unsigned long averageDelta = pulseSum / FILTER_SIZE;
-        if (averageDelta > 0) {
-            rpm = 60000000UL / averageDelta;
-        }
-    }
-    
-    rpmNeedlePos = map(rpm, 0, 10000, 0, 2500);
-
-    if (millis() - lastUIUpdate > 50) {
-        updateDynoUI(); // Keep the loop clean
-        lastUIUpdate = millis();
-    }
-
-    // Fill bins for chart array
-    int binIndex = -1;
-
-    // Fill chart array
-    if(rpmRange == 1) // 0-10000 RPM range
-    { 
-      lv_label_set_text(ui_chartScreenChartXLabel, "20      25      31      36      41     47      52     57      63     68     73      79      84      89      95     100");      // Calculate bin: 10000 / 31 bins = ~322.5 RPM per bin
-      float range1_width = (10000.0f - 2000.0f) / (float)MAX_BINS; 
-      binIndex = (rpm - 2000) / range1_width;
-      // Simple noise filter
-      if (rpm > 1900 && rpm < 11000) {
-        // Safety check and Update Bins
-        if(binIndex >= 0 && binIndex < MAX_BINS) 
-        {
-          short currentT = (short)(torque * 100);
-          short currentH = (short)(horsepower * 100);
-      
-          if(currentT > t_bins[binIndex]) t_bins[binIndex] = currentT;
-          if(currentH > h_bins[binIndex]) h_bins[binIndex] = currentH;
-        }
-      }
-    } 
-    else if(rpmRange == 0) // 1000-5000 RPM range
-    {
-      lv_label_set_text(ui_chartScreenChartXLabel, "10      12      15      18      20     23      25     28      31     33     36     38      41      44      47      50");      // Calculate bin: (rpm - 1000) / (4000 / 31)
-      float range0_width = (5000.0f - 1000.0f) / (float)MAX_BINS;
-      binIndex = (rpm - 1000) / range0_width;
-      // Simple noise filter
-      if (rpm > 950 && rpm < 6000) {
-        // Safety check and Update Bins
-        if(binIndex >= 0 && binIndex < MAX_BINS) 
-        {
-          short currentT = (short)(torque * 100);
-          short currentH = (short)(horsepower * 100);
-      
-          if(currentT > t_bins[binIndex]) t_bins[binIndex] = currentT;
-          if(currentH > h_bins[binIndex]) h_bins[binIndex] = currentH;
-        }
+        // Final Engine RPM = Shaft RPM * Total Reduction
+        rpm = (int)(shaftRpm * ENGINE_TO_SHAFT_RATIO);
       }
     }
+  }
+  
+  rpmNeedlePos = map(rpm, 0, 10000, 0, 2500);
 
-    checkSerialCommands(); // Call the listener every loop
+  if (millis() - lastUIUpdate > 50) {
+    updateDynoUI(); // Keep the loop clean
+    lastUIUpdate = millis();
+  }
 
-    // Only log if the computer has requested it
-    if (serialLoggingActive) {
-      static uint32_t lastLogTime = 0;
-      if (millis() - lastLogTime >= 50) {
-          Serial.print(rpm);
-         Serial.print(",");
-          Serial.print(torque, 3); 
-          Serial.print(",");
-          Serial.println(horsepower, 3);
-          lastLogTime = millis();
+  // Fill bins for chart array
+  checkSerialCommands(); 
+
+  float currentRpm = (float)rpm;
+  int binIndex = -1;
+
+  // --- DYNAMIC SCALING CALCULATION ---
+  if(rpmRange == 1) { // 0-10,000 RPM Mode
+    lv_label_set_text(ui_chartScreenChartXLabel, "20      25      31      36      41     47      52     57      63     68     73      79      84      89      95     100");
+    float range_low = 2000.0f;
+    float range_high = 20000.0f;
+    float range_width = (range_high - range_low) / (float)MAX_BINS;
+    binIndex = (int)((currentRpm - range_low) / range_width);
+  } 
+  else { // 1,000-5,000 RPM Mode
+    lv_label_set_text(ui_chartScreenChartXLabel, "10      12      15      18      20     23      25     28      31     33     36     38      41      44      47      50");
+    float range_low = 1000.0f;
+    float range_high = 5000.0f;
+    float range_width = (range_high - range_low) / (float)MAX_BINS;
+    binIndex = (int)((currentRpm - range_low) / range_width);
+  }
+
+  // --- GAP FILLING INTERPOLATION ---
+  if (binIndex >= 0 && binIndex < MAX_BINS) {
+    short currentT = (short)(torque * 100.0f);
+    short currentH = (short)(horsepower * 100.0f);
+
+    // If we accelerated faster than 1 bin per pulse, fill the gaps
+    if (binIndex >= 0 && binIndex < MAX_BINS) {
+      short currentT = (short)(torque * 100.0f);
+      short currentH = (short)(horsepower * 100.0f);
+
+      // Only interpolate if we have a valid previous point AND it's a reasonable jump
+      // If lastBinIndex is -1 (from a reset), we skip the fill loop
+      if (lastBinIndex != -1 && binIndex > lastBinIndex + 1 && (binIndex - lastBinIndex) < 20) {
+        for (int j = lastBinIndex + 1; j < binIndex; j++) {
+          if (currentT > t_bins[j]) t_bins[j] = currentT;
+          if (currentH > h_bins[j]) h_bins[j] = currentH;
+        }
       }
-    }
 
-    //runMode stuff runMode is the main dyno run function. It is started when we press the dynoStartButton on the dynoRunScreen.
-    if(runMode == 1) 
+      // Standard Update
+      if (currentT > t_bins[binIndex]) t_bins[binIndex] = currentT;
+      if (currentH > h_bins[binIndex]) h_bins[binIndex] = currentH;
+
+      lastBinIndex = binIndex;
+    }
+  }
+  // Only log if the computer has requested it
+  if (serialLoggingActive) {
+    static uint32_t lastLogTime = 0;
+    if (millis() - lastLogTime >= 50) {
+      Serial.print(rpm);
+      Serial.print(",");
+      Serial.print(torque, 3); 
+      Serial.print(",");
+      Serial.println(horsepower, 3);
+      lastLogTime = millis();
+    }
+  }
+
+  //runMode stuff runMode is the main dyno run function. It is started when we press the dynoStartButton on the dynoRunScreen.
+  if(runMode == 1) {
     //If it is in runMode
-    {
-      unsigned long currentMillis = millis();// Set currentMillis
-      if(previousMillis == 0) 
+    unsigned long currentMillis = millis();// Set currentMillis
+    if(previousMillis == 0) {
       //If it is in the beginning of the runMode procedure
-      {
-        if(rpm > 3500)
-        {
-          lv_obj_add_flag(ui_throttleNotice, LV_OBJ_FLAG_HIDDEN);
-          if(torque < 4)
-          {
-            lv_obj_clear_flag(ui_brakeNowNotice, LV_OBJ_FLAG_HIDDEN);
-          }else if(torque >= 4)
-          {
-            lv_obj_add_flag(ui_brakeNowNotice, LV_OBJ_FLAG_HIDDEN);
-            previousMillis = currentMillis;
-          }
+      if(rpm > 3500) {
+        lv_obj_add_flag(ui_throttleNotice, LV_OBJ_FLAG_HIDDEN);
+        if(torque < 4) {
+          lv_obj_clear_flag(ui_brakeNowNotice, LV_OBJ_FLAG_HIDDEN);
         }
-      }else if(runTime + previousMillis <= currentMillis) 
+        else if(torque >= 4) {
+          lv_obj_add_flag(ui_brakeNowNotice, LV_OBJ_FLAG_HIDDEN);
+          previousMillis = currentMillis;
+        }
+      }
+    }
+    else if(runTime + previousMillis <= currentMillis) {
       //If it isn't the beginning, is it the end??
-      {
-        previousMillis = 0;
-        runMode = 0;
-        lv_obj_add_flag(ui_runTimeCounter, LV_OBJ_FLAG_HIDDEN);
-        lv_bar_set_value(ui_timeoutBar, 1000, LV_ANIM_OFF);
-      }else 
-      //We are in the middle of a runMode, keep counting and update the screen.
-      {
+      previousMillis = 0;
+      runMode = 0;
+      lv_obj_add_flag(ui_runTimeCounter, LV_OBJ_FLAG_HIDDEN);
+      lv_bar_set_value(ui_timeoutBar, 1000, LV_ANIM_OFF);
+      }
+      else {
+        //We are in the middle of a runMode, keep counting and update the screen.
         unsigned long timeLeft = map((currentMillis - previousMillis)/1000, 0, 10, 10, 0);
         itoa(timeLeft, timeRemaining, 10);
         lv_bar_set_value(ui_timeoutBar, (currentMillis - previousMillis)/10, LV_ANIM_OFF);
@@ -546,7 +565,7 @@ void loop() {
       }
     } //End runMode
 
-    lv_timer_handler(); //This line is responsible for the UI doing its work
+  lv_timer_handler(); //This line is responsible for the UI doing its work
 }
 
 // Task handle for Core 0. This runs the HX711 reading tasks on the second core of the esp32.
@@ -567,16 +586,21 @@ void SensorTaskLoop(void * pvParameters) {
 
       scaleReading = total / AVG_SIZE;
 
-      // Calculate torque
-      // 1250 steps / 62.5 = 20.0 lbs. So we map 0 to 1250 raw -> 0 to 20.0 torque
-      torque = map(scaleReading, noWeight, calibration, 0, 20000) / 1000.0f;
+      // Calculate torque using floating point math
+      float rawRange = (float)(calibration - noWeight);
+      if (rawRange != 0) {
+        // 1. Calculate the Torque at the BRAKE (Shaft)
+        float shaftTorque = ((float)(scaleReading - noWeight) / rawRange) * 20.0f;
+        // 2. Correct back to ENGINE Torque based on gearing
+        torque = shaftTorque / ENGINE_TO_SHAFT_RATIO;
+      }
 
       // Calculate needle position from torque
       // Now the needle just follows the physics. 20lbs * 62.5 = 1250 steps
       torqueNeedlePos = (long)(torque * 62.5f);
 
       // Set horsepower and torque peaks
-      horsepower = (torque * rpm) * 0.00019040365f;
+      horsepower = (torque * (float)rpm) * 0.00019040365f;
 
       if (torque > maxTorque) { 
         maxTorque = torque; 
