@@ -108,7 +108,7 @@ const unsigned long RPM_TIMEOUT = 200000;   // 0.5s without pulse = 0 RPM
 // --- MECHANICAL CONFIGURATION ---
 const float PRIMARY_REDUCTION = 1.0f;   // Crank to input shaft
 const float GEAR_RATIO = 1.0f;        // Transmission gear ratio
-const float FINAL_DRIVE = 10.0f;         // Output to dyno shaft
+const float FINAL_DRIVE = 1.0f;         // Output to dyno shaft
 const int   MAGNET_COUNT = 1;           // Recommended for slow shafts
 // Combined total reduction factor
 const float ENGINE_TO_SHAFT_RATIO = PRIMARY_REDUCTION * GEAR_RATIO * FINAL_DRIVE;
