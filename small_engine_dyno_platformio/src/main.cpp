@@ -416,7 +416,7 @@ void loop() {
   unsigned long localDelta;
   unsigned long lastTime;
   static unsigned long lastValidDelta = 0;
-  const float MAX_RPM_CHANGE_FACTOR = 1.6f; // Limits RPM change to 50% per pulse
+  const float MAX_RPM_CHANGE_FACTOR = 2.0f; // Limits RPM change to 50% per pulse
 
   // 1. Thread-safe capture from ISR
   noInterrupts();
@@ -433,19 +433,33 @@ void loop() {
     noInterrupts(); pulseDelta = 0; interrupts();
   } 
   // 3. New Pulse Filtering Logic
+  // 3. New Pulse Filtering Logic
   else if (localDelta > MIN_PULSE_DELTA) { 
     noInterrupts(); pulseDelta = 0; interrupts();
 
     bool isSpike = false;
+    
+    // --- DYNAMIC INTENSITY CALCULATION ---
+    // Higher RPM = Stricter (Intense) Filtering.
+    // Lower Factor values (closer to 1.0) are MORE intense.
+    float currentFactor;
+    if (rpm < 2000)      currentFactor = 4.0f;  // Loose: Allows 300% change for instant throttle response
+    else if (rpm < 4000) currentFactor = 1.6f;  // Medium: Standard filtering for mid-range
+    else                 currentFactor = 1.25f; // Intense: Only allows 25% change between pulses at high RPM
+
     if (lastValidDelta != 0) {
-      // If the new pulse is too short (way faster) or too long (way slower)
-      if (localDelta < (lastValidDelta / MAX_RPM_CHANGE_FACTOR) || localDelta > (lastValidDelta * MAX_RPM_CHANGE_FACTOR)) {
+      // If the new pulse is outside our dynamic "Sanity Window"
+      if (localDelta < (lastValidDelta / currentFactor) || 
+          localDelta > (lastValidDelta * currentFactor)) {
         isSpike = true; 
       }
     }
 
+    // Process the pulse if it's clean OR if it's our first pulse after stop
     if (!isSpike || lastValidDelta == 0) {
       lastValidDelta = localDelta;
+
+      // Maintain the standard buffer (keeps your FILTER_SIZE fixed)
       pulseSum -= pulseBuffer[bufferIndex];
       pulseBuffer[bufferIndex] = localDelta;
       pulseSum += pulseBuffer[bufferIndex];
@@ -454,12 +468,11 @@ void loop() {
       unsigned long averageDelta = pulseSum / FILTER_SIZE;
 
       if (averageDelta > 0) {
-        // Calculate SHAFT RPM first
         float shaftRpm = (60000000.0f / (float)averageDelta) / (float)MAGNET_COUNT;
-        
-        // Final Engine RPM = Shaft RPM * Total Reduction
         rpm = (int)(shaftRpm * ENGINE_TO_SHAFT_RATIO);
       }
+    } else {
+      // Optional: Serial.println("Filtered High-RPM Spike");
     }
   }
   
