@@ -404,6 +404,7 @@ void updateDynoUI() {
   lv_label_set_text(ui_dynoRunHorsepowerMaxRpmField, maxHorsepowerRpmVal);
   lv_label_set_text(ui_dynoRunMaxTorqueField, maxTorqueVal);
   lv_label_set_text(ui_dynoRunTorqueMaxRpmField, maxTorqueRpmVal);
+  torqueNeedlePos = (long)(torque * 62.5f);
 }
 
 void sendRawDebugData(long raw, int needle, float tq) {
@@ -475,7 +476,7 @@ void loop() {
       // Optional: Serial.println("Filtered High-RPM Spike");
     }
   }
-  
+  horsepower = (torque * (float)rpm) * 0.00019040365f;
   rpmNeedlePos = map(rpm, 0, 10000, 0, 2500);
 
   if (millis() - lastUIUpdate > 50) {
@@ -488,6 +489,15 @@ void loop() {
 
   float currentRpm = (float)rpm;
   int binIndex = -1;
+  // Set horsepower and torque peaks
+  if (torque > maxTorque) { 
+    maxTorque = torque; 
+    maxTorqueRpm = rpm;
+  }
+  if (horsepower > maxHorsepower) {
+    maxHorsepower = horsepower;
+    maxHorsepowerRpm = rpm;
+  }
 
   // --- DYNAMIC SCALING CALCULATION ---
   if(rpmRange == 1) { // 0-10,000 RPM Mode
@@ -606,23 +616,7 @@ void SensorTaskLoop(void * pvParameters) {
         float shaftTorque = ((float)(scaleReading - noWeight) / rawRange) * 20.0f;
         // 2. Correct back to ENGINE Torque based on gearing
         torque = shaftTorque / ENGINE_TO_SHAFT_RATIO;
-      }
-
-      // Calculate needle position from torque
-      // Now the needle just follows the physics. 20lbs * 62.5 = 1250 steps
-      torqueNeedlePos = (long)(torque * 62.5f);
-
-      // Set horsepower and torque peaks
-      horsepower = (torque * (float)rpm) * 0.00019040365f;
-
-      if (torque > maxTorque) { 
-        maxTorque = torque; 
-        maxTorqueRpm = rpm;
-      }
-      if (horsepower > maxHorsepower) {
-        maxHorsepower = horsepower;
-        maxHorsepowerRpm = rpm;
-      }
+      }  
     }
     vTaskDelay(pdMS_TO_TICKS(1)); 
   }
