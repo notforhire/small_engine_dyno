@@ -32,8 +32,7 @@ static lv_color_t *disp_draw_buf;
 static lv_disp_drv_t disp_drv;
 
 //Display flushing
-void my_disp_flush( lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p )
-{
+void my_disp_flush( lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p ) {
   uint32_t w = (area->x2 - area->x1 + 1);
   uint32_t h = (area->y2 - area->y1 + 1);
 
@@ -43,12 +42,11 @@ void my_disp_flush( lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *colo
     gfx->draw16bitRGBBitmap(area->x1, area->y1, (uint16_t *)&color_p->full, w, h);
   #endif
 
-    lv_disp_flush_ready(disp);
+  lv_disp_flush_ready(disp);
 }
 
 //Read the touchpad
-void my_touchpad_read( lv_indev_drv_t * indev_driver, lv_indev_data_t * data )
-{
+void my_touchpad_read( lv_indev_drv_t * indev_driver, lv_indev_data_t * data ) {
   if (touch_has_signal()) {
     if (touch_touched()) {
       data->state = LV_INDEV_STATE_PR;
@@ -128,12 +126,12 @@ int bufferIndex = 0;
 unsigned long pulseSum = 0;
 //Interupt for hall effect sensor
 void IRAM_ATTR rpm_isr() {
-    unsigned long now = micros();
-    unsigned long interval = now - lastPulseTime;
-    if (interval > MIN_PULSE_DELTA) {
-        pulseDelta = interval;
-        lastPulseTime = now;
-    }
+  unsigned long now = micros();
+  unsigned long interval = now - lastPulseTime;
+  if (interval > MIN_PULSE_DELTA) {
+    pulseDelta = interval;
+    lastPulseTime = now;
+  }
 }
 SemaphoreHandle_t dataMutex; 
 HX711 scale; //Declare scale to call HX711 library
@@ -142,8 +140,7 @@ lv_obj_t * ui_Chart;
 void SensorTaskLoop(void * pvParameters); 
 TaskHandle_t SensorTask;
 
-void setup()
-{
+void setup() {
   dataMutex = xSemaphoreCreateMutex();
   pinMode(hallPin, INPUT); //Sets hall sensor as input
   pinMode(TFT_BL, OUTPUT); //Set backlight pin as output
@@ -208,28 +205,24 @@ void setup()
 }
 
 //Function to zero out scale
-void calibrateLow(lv_event_t * e)
-{
+void calibrateLow(lv_event_t * e) {
 	noWeight = scale.read();
 }
 
 //Function to calibrate scales top end
-void calibrateHigh(lv_event_t * e)
-{
+void calibrateHigh(lv_event_t * e) {
 	calibration = scale.read();
 }
 
 //This function is called to start the dyno run
-void startDyno(lv_event_t * e)
-{
+void startDyno(lv_event_t * e) {
 	runMode = 1;
   previousMillis = 0;
   lv_obj_clear_flag(ui_throttleNotice, LV_OBJ_FLAG_HIDDEN);
 }
 
 //Funtion to reset stored max values
-void resetMax(lv_event_t * e)
-{
+void resetMax(lv_event_t * e) {
   for(int i = 0; i < MAX_BINS; i++) {
     t_bins[i] = 0; 
     h_bins[i] = 0;
@@ -245,8 +238,7 @@ void resetMax(lv_event_t * e)
 }
 
 //Function name should be explicit enough
-void drawChart(lv_event_t * e)
-{
+void drawChart(lv_event_t * e) {
   // 1. Stop Logging if active
   if (serialLoggingActive) {
     Serial.println("EOF"); 
@@ -255,27 +247,27 @@ void drawChart(lv_event_t * e)
 
   // 2. CHECK IF CHART EXISTS. Only create it if it doesn't exist.
   if(ui_Chart == NULL) {
-      ui_Chart = lv_chart_create(ui_ChartScreen);
-      lv_obj_set_width(ui_Chart, 700);
-      lv_obj_set_height(ui_Chart, 325);
-      lv_obj_set_x(ui_Chart, 0);
-      lv_obj_set_y(ui_Chart, -60);
-      lv_obj_set_align(ui_Chart, LV_ALIGN_CENTER);
-      lv_chart_set_type(ui_Chart, LV_CHART_TYPE_LINE);
+    ui_Chart = lv_chart_create(ui_ChartScreen);
+    lv_obj_set_width(ui_Chart, 700);
+    lv_obj_set_height(ui_Chart, 325);
+    lv_obj_set_x(ui_Chart, 0);
+    lv_obj_set_y(ui_Chart, -60);
+    lv_obj_set_align(ui_Chart, LV_ALIGN_CENTER);
+    lv_chart_set_type(ui_Chart, LV_CHART_TYPE_LINE);
       
-      // Visual styling (Move this inside the creation block so we don't re-apply it constantly)
-      lv_chart_set_div_line_count(ui_Chart, 5, 16);
-      lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_PRIMARY_X, 10, 5, 16, 2, false, 50);
-      lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 5, 2, true, 50);
-      lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_SECONDARY_Y, 10, 5, 5, 2, true, 25);  
-      lv_obj_set_style_bg_img_src(ui_Chart, &ui_img_carbon_fiber3_png, LV_PART_MAIN | LV_STATE_DEFAULT);
-      lv_obj_set_style_border_color(ui_Chart, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
-      lv_obj_set_style_text_font(ui_Chart, &ui_font_tomorrow18, LV_PART_TICKS | LV_STATE_DEFAULT);
-      lv_obj_set_style_size(ui_Chart, 0, LV_PART_INDICATOR);
+    // Visual styling (Move this inside the creation block so we don't re-apply it constantly)
+    lv_chart_set_div_line_count(ui_Chart, 5, 16);
+    lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_PRIMARY_X, 10, 5, 16, 2, false, 50);
+    lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 5, 2, true, 50);
+    lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_SECONDARY_Y, 10, 5, 5, 2, true, 25);  
+    lv_obj_set_style_bg_img_src(ui_Chart, &ui_img_carbon_fiber3_png, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_border_color(ui_Chart, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_Chart, &ui_font_tomorrow18, LV_PART_TICKS | LV_STATE_DEFAULT);
+    lv_obj_set_style_size(ui_Chart, 0, LV_PART_INDICATOR);
       
-      // Initialize Series ONLY ONCE
-      lv_chart_add_series(ui_Chart, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y);
-      lv_chart_add_series(ui_Chart, lv_color_hex(0x2D00FF), LV_CHART_AXIS_SECONDARY_Y);
+    // Initialize Series ONLY ONCE
+    lv_chart_add_series(ui_Chart, lv_color_hex(0x2D00FF), LV_CHART_AXIS_PRIMARY_Y);
+    lv_chart_add_series(ui_Chart, lv_color_hex(0xFF0000), LV_CHART_AXIS_SECONDARY_Y);
   }
 
   // 3. ALWAYS UPDATE RANGES (In case user switched range settings)
@@ -296,8 +288,7 @@ void drawChart(lv_event_t * e)
 }
 
 //Calling this function switches between high and low range torque and horsepower gauges on the freestyle screen
-void gaugeSelect(lv_event_t * e)
-{
+void gaugeSelect(lv_event_t * e) {
   lv_event_code_t event_code = lv_event_get_code(e);
   lv_obj_t * target = lv_event_get_target(e);
   if(event_code == LV_EVENT_VALUE_CHANGED) {
@@ -318,8 +309,7 @@ void gaugeSelect(lv_event_t * e)
 }
 
 //Calling this function switches the RPM range of the graph
-void rpmRangeSelect(lv_event_t * e)
-{
+void rpmRangeSelect(lv_event_t * e) {
   lv_event_code_t event_code = lv_event_get_code(e);
   lv_obj_t * target = lv_event_get_target(e);
   if(event_code == LV_EVENT_VALUE_CHANGED) {
@@ -337,26 +327,22 @@ void rpmRangeSelect(lv_event_t * e)
 }
 
 //The following fuctions set the Y scale of the graph
-void firstTorqueRange(lv_event_t * e)
-{
+void firstTorqueRange(lv_event_t * e) {
   torqueGraphRange = 1000;
   horsepowerGraphRange = 1000;
 }
 
-void secondTorqueRange(lv_event_t * e)
-{
+void secondTorqueRange(lv_event_t * e) {
   torqueGraphRange = 2000;
   horsepowerGraphRange = 2000;
 }
 
-void thirdTorqueRange(lv_event_t * e)
-{
+void thirdTorqueRange(lv_event_t * e) {
   torqueGraphRange = 3000;
   horsepowerGraphRange = 3000;
 }
 
-void fourthTorqueRange(lv_event_t * e)
-{
+void fourthTorqueRange(lv_event_t * e) {
   torqueGraphRange = 4000;
   horsepowerGraphRange = 4000;
 }
@@ -485,12 +471,14 @@ void loop() {
     snapTorque = torque;
     xSemaphoreGive(dataMutex);
   }
+
   snapHorsepower = (snapTorque * (float)snapRpm) / 5252.0f;
     
   if (snapTorque > maxTorque) { 
     maxTorque = snapTorque; 
     maxTorqueRpm = snapRpm;
   }
+
   if (snapHorsepower > maxHorsepower) {
     maxHorsepower = snapHorsepower;
     maxHorsepowerRpm = snapRpm;
@@ -520,7 +508,7 @@ void loop() {
   }
 
   // --- ROBUST GAP FILLING INTERPOLATION ---
-if (binIndex >= 0 && binIndex < MAX_BINS && lastBinIndex != -1) {
+  if (binIndex >= 0 && binIndex < MAX_BINS && lastBinIndex != -1) {
     short currentT = (short)(snapTorque * 100.0f);
     short currentH = (short)(snapHorsepower * 100.0f);
 
@@ -529,37 +517,37 @@ if (binIndex >= 0 && binIndex < MAX_BINS && lastBinIndex != -1) {
 
     // Only fill gaps if it's a reasonable jump (e.g., less than 20% of the chart)
     if (gapSize > 1 && gapSize < 20) {
-        // Determine start and end points regardless of direction (Accel or Decel)
-        int startJ = min(lastBinIndex, binIndex);
-        int endJ = max(lastBinIndex, binIndex);
+      // Determine start and end points regardless of direction (Accel or Decel)
+      int startJ = min(lastBinIndex, binIndex);
+      int endJ = max(lastBinIndex, binIndex);
 
-        for (int j = startJ; j <= endJ; j++) {
-            // Safety: Double check array bounds
-            if (j >= 0 && j < MAX_BINS) {
-                // Update peak values for all bins in the gap
-                if (currentT > t_bins[j]) t_bins[j] = currentT;
-                if (currentH > h_bins[j]) h_bins[j] = currentH;
-            }
+      for (int j = startJ; j <= endJ; j++) {
+        // Safety: Double check array bounds
+        if (j >= 0 && j < MAX_BINS) {
+          // Update peak values for all bins in the gap
+          if (currentT > t_bins[j]) t_bins[j] = currentT;
+          if (currentH > h_bins[j]) h_bins[j] = currentH;
         }
+      }
     } else {
         // No large gap: Standard single-bin update
         if (currentT > t_bins[binIndex]) t_bins[binIndex] = currentT;
         if (currentH > h_bins[binIndex]) h_bins[binIndex] = currentH; 
     }
-}
+  }
 
-    checkSerialCommands(); // Call the listener every loop
+  checkSerialCommands(); // Call the listener every loop
 
-    // Only log if the computer has requested it
-    static uint32_t lastLogTime = 0;
-    if (serialLoggingActive && (millis() - lastLogTime >= 50)) { // 20Hz sync
-      Serial.print(snapRpm);
-      Serial.print(",");
-      Serial.print(snapTorque, 2);
-      Serial.print(",");
-      Serial.println(snapHorsepower, 2);
-      lastLogTime = millis();
-    }
+  // Only log if the computer has requested it
+  static uint32_t lastLogTime = 0;
+  if (serialLoggingActive && (millis() - lastLogTime >= 50)) { // 20Hz sync
+    Serial.print(snapRpm);
+    Serial.print(",");
+    Serial.print(snapTorque, 2);
+    Serial.print(",");
+    Serial.println(snapHorsepower, 2);
+    lastLogTime = millis();
+  }
 
   //runMode stuff runMode is the main dyno run function. It is started when we press the dynoStartButton on the dynoRunScreen.
   if(runMode == 1) {
@@ -593,7 +581,7 @@ if (binIndex >= 0 && binIndex < MAX_BINS && lastBinIndex != -1) {
         lv_obj_clear_flag(ui_runTimeCounter, LV_OBJ_FLAG_HIDDEN);
         lv_label_set_text(ui_runTimeCounter, timeRemaining);
       }
-    } //End runMode
+  } //End runMode
 
   lv_timer_handler(); //This line is responsible for the UI doing its work
 }
