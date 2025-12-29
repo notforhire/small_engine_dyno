@@ -126,12 +126,36 @@ int bufferIndex = 0;
 unsigned long pulseSum = 0;
 //Interupt for hall effect sensor
 void IRAM_ATTR rpm_isr() {
+  static unsigned long prevInterval = 0; 
   unsigned long now = micros();
   unsigned long interval = now - lastPulseTime;
-  if (interval > MIN_PULSE_DELTA) {
+
+  // 1. SAFETY RESET: If the gap is huge (>0.1s aka <600 RPM), the engine stopped or idled.
+  // We MUST accept this pulse to restart tracking, or we'll get stuck at 0.
+  if (interval > 100000) {
     pulseDelta = interval;
+    prevInterval = interval;
     lastPulseTime = now;
+    return;
   }
+
+  // 2. HARD NOISE FLOOR: 10,000 RPM (6000 microseconds)
+  // Anything faster is definitely a spark plug glitch.
+  if (interval < 6000) return; 
+
+  // 3. THE "TIGHT" WINDOW (25% Acceleration Limit)
+  // We check if the new interval is drastically shorter (faster RPM) than the last one.
+  // "prevInterval >> 2" divides by 4 (25%).
+  // So: Limit = Prev - (Prev/4) -> 75% of previous time.
+  if (prevInterval > 0) {
+    unsigned long accelerationLimit = prevInterval - (prevInterval >> 2); 
+    if (interval < accelerationLimit) return; // REJECT: Too fast, too soon.
+  }
+
+  // If we pass the gauntlet, it's real data.
+  pulseDelta = interval;
+  prevInterval = interval;
+  lastPulseTime = now;
 }
 SemaphoreHandle_t dataMutex; 
 HX711 scale; //Declare scale to call HX711 library
@@ -142,7 +166,7 @@ TaskHandle_t SensorTask;
 
 void setup() {
   dataMutex = xSemaphoreCreateMutex();
-  pinMode(hallPin, INPUT); //Sets hall sensor as input
+  pinMode(hallPin, INPUT_PULLDOWN); //Sets hall sensor as input
   pinMode(TFT_BL, OUTPUT); //Set backlight pin as output
   digitalWrite(TFT_BL, HIGH); //Turn backlight on full brightness
 
@@ -353,7 +377,6 @@ void checkSerialCommands() {
     if (cmd == 's') {
       serialLoggingActive = true;
       Serial.println("READY"); 
-      Serial.flush(); // FORCE the message out to the PC now
       Serial.println("RPM,Torque,Horsepower"); 
     } 
     else if (cmd == 'q') {
