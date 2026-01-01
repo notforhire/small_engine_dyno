@@ -1,0 +1,115 @@
+# Pit Row Dyno - Wiring Manifest
+**Hardware Revision:** 1.0  
+**Controller:** Sunton ESP32-8048S070  
+
+## 1. Master Pinout Overview (Header P3 Hub)
+On this specific board revision, **Header P3** acts as the central data hub for the I2C and Load Cell sensors.
+
+| ESP32 Pin | Function | Connects To | Wire Color |
+| :--- | :--- | :--- | :--- |
+| **GPIO 17** | **SCK** (Clock) | HX711 Load Cell Amp | Red |
+| **GPIO 18** | **DT** (Data) | HX711 Load Cell Amp | Yellow |
+| **GPIO 19** | **SDA** (Data) | MCP9600 Thermocouple | Blue |
+| **GPIO 20** | **SCL** (Clock) | MCP9600 Thermocouple | Black |
+
+---
+
+## 2. Sensor Connection Details
+
+### A. RPM / Hall Effect Sensor
+* **Sensor Model:** NJK-5002A (PNP Type)
+* **Connector:** Delphi Weather Pack (3-Pin)
+* **ESP32 GPIO:** Pin 12 (Header P2)
+* **Voltage Logic:** 5V Sensor adapted to 3.3V Logic.
+
+**Wiring Harness:**
+| Delphi Pin | Wire Color | Destination | Notes |
+| :--- | :--- | :--- | :--- |
+| **Left** | **Brown** | **Board Solder Pad (+5V)** | Main Power |
+| **Center** | **Black** | **Signal Circuit** (See Below) | Logic Signal |
+| **Right** | **Blue** | **Board Solder Pad (GND)** | Common Ground |
+
+**Signal Protection Circuit (Voltage Divider):**
+1. **Black Wire** connects to a **2.2kΩ Resistor**.
+2. Other side of 2.2kΩ connects to **ESP32 GPIO 12**.
+3. **ESP32 GPIO 12** also connects to a **4.7kΩ Resistor**.
+4. Other side of 4.7kΩ connects to **GND**.
+
+---
+
+### B. Load Cell (Torque)
+* **Module:** HX711 Amplifier
+* **Connector:** Delphi Weather Pack (4-Pin)
+* **Polarity Note:** Wired specifically for this chassis (Red=E+, Black=E-).
+
+**Wiring Harness:**
+| Delphi Pin | Wire Color | Destination | Function |
+| :--- | :--- | :--- | :--- |
+| **Upper Left** | **Green** | HX711 **A+** | Signal Positive |
+| **Upper Right** | **White** | HX711 **A-** | Signal Negative |
+| **Lower Left** | **Red** | HX711 **E+** | Excitation Power (5V/3V) |
+| **Lower Right** | **Black** | HX711 **E-** | Excitation Ground |
+
+---
+
+### C. Exhaust Temperature (EGT)
+* **Module:** MCP9600 Amplifier (I2C)
+* **Interface:** Panel-Mount K-Type Female Socket (Yellow)
+* **Address:** 0x60 (Default)
+
+**Wiring Path:**
+1. **Exhaust Probe** plugs into **Female K-Socket**.
+2. **Female Socket** wired internally to **MCP9600 Terminals**.
+3. **MCP9600 SDA** -> ESP32 **GPIO 19** (Header P3).
+4. **MCP9600 SCL** -> ESP32 **GPIO 20** (Header P3).
+
+---
+
+## 3. Logic Schematic
+
+```mermaid
+---
+config:
+  look: handDrawn
+  layout: elk
+---
+flowchart TB
+ subgraph subGraph0["Sunton ESP32-8048S070"]
+        P3_Hub["Header P3: 17, 18, 19, 20"]
+        P2_Sig["Header P2: Pin 12"]
+        Pad_5V(("Shared 5V Pad"))
+        Pad_3V3(("Solder Pad 3.3V"))
+        Pad_GND(("Common Ground Pad"))
+  end
+ subgraph subGraph1["RPM Sensor Delphi 3-Pin"]
+        Hall_Brown["Brown: VCC"]
+        Hall_Blue["Blue: GND"]
+        Hall_Black["Black: Signal"]
+  end
+ subgraph subGraph2["Load Cell Delphi 4-Pin"]
+        LC_Red["Red: E+"]
+        LC_Black["Black: E-"]
+        LC_Green["Green: A+"]
+        LC_White["White: A-"]
+  end
+ subgraph subGraph3["EGT System"]
+        Probe["K-Type Probe"]
+        Socket["Female Panel Socket"]
+        MCP["MCP9600 Amp"]
+  end
+    Hall_Brown --> Pad_5V
+    Hall_Blue --> Pad_GND
+    Hall_Black -- "2.2k ohm" --> P2_Sig
+    P2_Sig -- "4.7k ohm" --> Pad_GND
+    LC_Red --> HX711["HX711 Amp"]
+    LC_Black --> HX711
+    LC_Green --> HX711
+    LC_White --> HX711
+    HX711 -- VCC --> Pad_5V
+    HX711 -- GND --> Pad_GND
+    HX711 -- SCK 17 / DT 18 --> P3_Hub
+    Probe ==> Socket
+    Socket ==> MCP
+    MCP -- VIN --> Pad_3V3
+    MCP -- GND --> Pad_GND
+    MCP -- SDA 19 / SCL 20 --> P3_Hub
