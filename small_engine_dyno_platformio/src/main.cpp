@@ -119,6 +119,10 @@ const float FINAL_DRIVE = 5.0f;         // Output to dyno shaft
 const int   MAGNET_COUNT = 1;           // Recommended for slow shafts
 // Combined total reduction factor
 const float ENGINE_TO_SHAFT_RATIO = PRIMARY_REDUCTION * GEAR_RATIO * FINAL_DRIVE;
+// PROTOCOL VERSION 1.0
+// Columns: RPM, Torque, HP, EGT
+const char* DATA_HEADER = "RPM,Torque,HP,EGT"; 
+const int PROTOCOL_VERSION = 1;
 //rpm smoothing
 const int FILTER_SIZE = 3;
 unsigned long pulseBuffer[FILTER_SIZE] = {0};
@@ -378,14 +382,16 @@ void fourthTorqueRange(lv_event_t * e) {
 void checkSerialCommands() {
   while (Serial.available() > 0) {
     char cmd = Serial.read();
-    if (cmd == 's') {
+    if (cmd == 's') { // START LOGGING
       serialLoggingActive = true;
+      
+      // SEND HANDSHAKE PACKET
+      Serial.println("PR_DYNO_START"); // Unique ID so app knows it's a Pit Row Dyno
+      Serial.print("VER:"); Serial.println(PROTOCOL_VERSION);
+      Serial.print("COLS:"); Serial.println(DATA_HEADER);
       Serial.println("READY"); 
-      Serial.println("RPM,Torque,Horsepower"); 
     } 
-    else if (cmd == 'q') {
-      serialLoggingActive = false;
-    }
+    // ...
   }
 }
 
