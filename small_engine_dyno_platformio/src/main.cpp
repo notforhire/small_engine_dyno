@@ -102,7 +102,7 @@ bool brakeOn = 0;
 bool rpmRange = 0;
 bool serialLoggingActive = false;
 //Variables for chart positions
-const int MAX_BINS = 100;
+const int MAX_BINS = 70;
 volatile short t_bins[MAX_BINS] = {0};
 volatile short h_bins[MAX_BINS] = {0};
 int lastBinIndex = -1; // Important for interpolation
@@ -115,7 +115,7 @@ const unsigned long RPM_TIMEOUT = 200000;   // 0.5s without pulse = 0 RPM
 // --- MECHANICAL CONFIGURATION ---
 const float PRIMARY_REDUCTION = 1.0f;   // Crank to input shaft
 const float GEAR_RATIO = 1.0f;        // Transmission gear ratio
-const float FINAL_DRIVE = 1.0f;         // Output to dyno shaft
+const float FINAL_DRIVE = 5.0f;         // Output to dyno shaft
 const int   MAGNET_COUNT = 1;           // Recommended for slow shafts
 // Combined total reduction factor
 const float ENGINE_TO_SHAFT_RATIO = PRIMARY_REDUCTION * GEAR_RATIO * FINAL_DRIVE;
@@ -143,14 +143,18 @@ void IRAM_ATTR rpm_isr() {
   // Anything faster is definitely a spark plug glitch.
   if (interval < 6000) return; 
 
-  // 3. THE "TIGHT" WINDOW (25% Acceleration Limit)
-  // We check if the new interval is drastically shorter (faster RPM) than the last one.
-  // "prevInterval >> 2" divides by 4 (25%).
-  // So: Limit = Prev - (Prev/4) -> 75% of previous time.
-  if (prevInterval > 0) {
-    unsigned long accelerationLimit = prevInterval - (prevInterval >> 2); 
-    if (interval < accelerationLimit) return; // REJECT: Too fast, too soon.
-  }
+    // 3. THE "TIGHT" WINDOW (25% Acceleration Limit)
+    // We check if the new interval is drastically shorter (faster RPM) than the last one.
+    // "prevInterval >> 2" divides by 4 (25%).
+    // So: Limit = Prev - (Prev/4) -> 75% of previous time.
+    if (prevInterval > 0) {
+        // Multiplier format: (Interval * Percentage) / 100
+        // 60 means the new interval must be at least 60% of the old one
+        // Lower number = Lets MORE signal through (Easier to accelerate)
+        // Higher number = MORE filtering (rejects noise better
+        unsigned long accelerationLimit = (prevInterval * 40) / 100; 
+        if (interval < accelerationLimit) return; // REJECT: Too fast, too soon.
+    }
 
   // If we pass the gauntlet, it's real data.
   pulseDelta = interval;
