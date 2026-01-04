@@ -74,7 +74,6 @@ volatile float horsepower; // Declare horsepower variable to be calculated
 float snapHorsepower;
 volatile float torque; // Declare torque variable
 float snapTorque;
-float duration; // Declare time variable for engine RPM calculation
 long previousMillis = 0; //Declare a time variable to use for the runMode
 long runTime = 10000;  //The runMode will last for 10 seconds
 long torqueNeedlePos = 0; // Declare torqueNeedlePos variable to rotate torque gauge needles
@@ -97,8 +96,6 @@ char maxHorsepowerRpmVal[10];
 char timeRemaining[10];
 //bools
 bool runMode = 0;
-bool rpmMet = 0;
-bool brakeOn = 0;
 bool rpmRange = 0;
 bool serialLoggingActive = false;
 //Variables for chart positions
@@ -191,7 +188,6 @@ void setup() {
   delay(10);
   touch_init();
 
-  //  touch.setTouch( calData );
   screenWidth = gfx->width();
   screenHeight = gfx->height();
 
@@ -391,7 +387,9 @@ void checkSerialCommands() {
       Serial.print("COLS:"); Serial.println(DATA_HEADER);
       Serial.println("READY"); 
     } 
-    // ...
+    else if (cmd == 'q') {
+      serialLoggingActive = false;
+    }
   }
 }
 
@@ -439,11 +437,6 @@ void updateDynoUI() {
   lv_label_set_text(ui_dynoRunTorqueMaxRpmField, maxTorqueRpmVal);
 }
 
-void sendRawDebugData(long raw, int needle, float tq) {
-  // Simple CSV format: RAW,NEEDLE,TORQUE
-  Serial.printf("DEBUG:%ld,%d,%.4f\n", raw, needle, tq);
-}
-
 void loop() {
   static uint32_t lastUIUpdate = 0;
   unsigned long localDelta;
@@ -462,7 +455,6 @@ void loop() {
     rpmNeedlePos = 0;
     horsepowerNeedlePos = 0;
     // Clear buffer so it doesn't "hold" old speed
-    for(int i=0; i<FILTER_SIZE; i++) pulseBuffer[i] = 0;
     pulseSum = 0;
     bufferIndex = 0;
     memset(pulseBuffer, 0, sizeof(pulseBuffer));
@@ -620,7 +612,6 @@ void loop() {
 }
 
 // Task handle for Core 0. This runs the HX711 reading tasks on the second core of the esp32.
-// Remove the duplicate TaskHandle_t here; it's already at line 135
 void SensorTaskLoop(void * pvParameters) {
   const int AVG_SIZE = 8; 
   long readings[AVG_SIZE] = {0};
