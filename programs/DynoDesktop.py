@@ -11,7 +11,14 @@ import csv
 import math
 import textwrap
 from datetime import datetime
-
+import sys
+# We wrap the import in try/except so the app doesn't crash if esptool is missing
+try:
+    import esptool
+    HAS_ESPTOOL = True
+except ImportError:
+    HAS_ESPTOOL = False
+import subprocess
 # --- FORCED IMPORTS FOR FULLY PORTABLE BINARY ---
 import matplotlib
 import matplotlib.backends.backend_pdf
@@ -127,6 +134,7 @@ class DynoApp:
         tk.Button(conn_frame, text="📊 COMPARE", command=self.load_comparison, bg="#3498db", fg="white", width=10).pack(side="right")
         tk.Button(conn_frame, text="📁 FOLDER", command=self.choose_folder, bg="#95a5a6", fg="white", width=10).pack(side="right", padx=5)
         tk.Button(conn_frame, text="🔄 RE-GRAPH", command=self.generate_graph, bg="#1abc9c", fg="white", width=10).pack(side="right", padx=5)
+        tk.Button(conn_frame, text="⚡ UPDATE", command=self.update_firmware, bg="#8e44ad", fg="white", width=10).pack(side="right", padx=5)
 
         # CLEAR COMPARISON BUTTON
         self.btn_clear_comp = tk.Button(self.content, text="❌ CLEAR COMPARISON RUN", command=self.clear_comparison, bg="#e74c3c", fg="white", font=('Arial', 9), height=1)
@@ -236,7 +244,7 @@ class DynoApp:
             f"# Weather: {self.temp_in.get()}F, {self.press_in.get()}inHg, {self.hum_in.get()}% Hum",
             f"# SAE CF: {cf}",
             f"# Notes: {notes}",
-            "RPM,Torque,Horsepower"
+            "RPM,Torque,Horsepower,EGT"
         ]
 
         curr_max_hp, curr_max_tq = 0.0, 0.0
@@ -247,6 +255,8 @@ class DynoApp:
                 line = self.ser.readline().decode('utf-8', errors='ignore').strip()
                 
                 if not line: continue
+
+                if line.startswith("RPM"): continue
                 
                 # Handshake logic
                 if "READY" in line: 
@@ -259,12 +269,13 @@ class DynoApp:
                     break
                 
                 parts = line.split(',')
-                if len(parts) == 3:
+                if len(parts) >= 3:
                     try:
                         r_raw, t_raw, h_raw = parts[0], parts[1], parts[2]
+                        egt_raw = parts[3] if len(parts) > 3 else "0.0"
                         
                         # Store RAW strings to buffer immediately (fast!)
-                        run_buffer.append(f"{r_raw},{t_raw},{h_raw}")
+                        run_buffer.append(f"{r_raw},{t_raw},{h_raw},{egt_raw}")
 
                         # --- LIVE DASHBOARD LOGIC (Keep this) ---
                         # We still parse numbers for the UI, but we don't hold up the loop for disk I/O
@@ -434,6 +445,55 @@ class DynoApp:
             plt.savefig(pdf_path, dpi=300, bbox_inches='tight'); plt.close()
             messagebox.showinfo("Success", f"Report Saved: {pdf_path}")
         except Exception as e: messagebox.showerror("Export Error", str(e))
+
+    def update_firmware(self):
+        # 1. Select the file
+        firmware_path = filedialog.askopenfilename(
+           title="Select Firmware File",
+            filetypes=[("Binary Files", "*.bin"), ("All Files", "*.*")]
+        )
+        if not firmware_path:
+            return
+
+        # 2. Confirm
+        if not messagebox.askyesno("Confirm Update", "Ready to flash firmware?\n\nDo not unplug power!"):
+            return
+
+        # 3. DISCONNECT SERIAL
+        if self.ser and self.ser.is_open:
+            self.stop_session("Updating Firmware...") 
+            self.ser.close()
+    
+        port = self.port_combo.get()
+    
+        # 4. RUN ESPTOOL AS A COMMAND (This fixes the path issue!)
+        cmd = [
+            "esptool.py", # or just "esptool" depending on install
+            "--port", port,
+            "--baud", "460800",
+            "--before", "default_reset",
+            "--after", "hard_reset",
+            "write_flash",
+            "-z",
+            "0x10000",
+            firmware_path
+        ]
+
+        self.status_label.config(text="FLASHING... PLEASE WAIT...", fg="#e74c3c")
+        self.root.update()
+
+        try:
+            # This runs the command exactly like typing it in the terminal
+            subprocess.check_call(cmd) 
+        
+            messagebox.showinfo("Success", "Firmware Updated Successfully!")
+            self.status_label.config(text="UPDATE COMPLETE", fg="#2ecc71")
+
+        except subprocess.CalledProcessError as e:
+            messagebox.showerror("Update Failed", f"The flashing process failed.\nExit Code: {e.returncode}")
+            self.status_label.config(text="UPDATE FAILED", fg="red")
+        except FileNotFoundError:
+            messagebox.showerror("Error", "esptool not found!\n\nRun: pip install esptool")
 
 if __name__ == "__main__":
     try:
