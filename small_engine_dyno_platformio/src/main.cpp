@@ -86,8 +86,7 @@ long noWeight; // The varaible for storing the scale output when at zero weight 
 long calibration = 2000000; // Variable for storing the raw scale output when 20 pound weight is hung from calibration arm
 int maxHorsepowerRpm; //RPM at which maxHp is set
 int maxTorqueRpm; //RPM at which maxTorque is set
-int torqueGraphRange = 2000; //Range variable for scaling draph
-int horsepowerGraphRange = 2000;  //Range variable for scaling graph
+
 //Human readable variables
 char maxTorqueVal[10];
 char maxTorqueRpmVal[10];
@@ -96,35 +95,147 @@ char maxHorsepowerRpmVal[10];
 char timeRemaining[10];
 //bools
 bool runMode = 0;
-bool rpmRange = 0;
 bool serialLoggingActive = false;
 //Variables for chart positions
 const int MAX_BINS = 70;
-volatile short t_bins[MAX_BINS] = {0};
-volatile short h_bins[MAX_BINS] = {0};
+volatile int t_bins[MAX_BINS] = {0};
+volatile int h_bins[MAX_BINS] = {0};
 int lastBinIndex = -1; // Important for interpolation
 int binIndex = -1;
+// Global variable to share the active bin count with the chart callback
+int activeGraphBinCount = MAX_BINS; 
+
+// --- DYNAMIC SETTINGS ---
+int globalMaxRpm = 20000; // The Mathematical Limit (Slider)
+int currentGaugeFaceLimit = 20000; // The Visual Limit (Gauge Face)
+
+// Default Tuning Variables
+float primaryReduction = 1.0f;   
+float gearRatio = 1.0f;        
+float finalDriveRatio = 1.0f; 
+int   magnetCount = 1;        
+float engineToShaftRatio = 1.0f;
+float calibrationWeight = 20.0f;
+
+volatile unsigned long MIN_PULSE_DELTA = 3000; // Calculated based on globalMaxRpm
+
 //variables for rpm reading
 volatile unsigned long lastPulseTime = 0;
 volatile unsigned long pulseDelta = 0;
-const unsigned long MIN_PULSE_DELTA = 3000; // Filter: Ignores > 20,000 RPM (Noise)
 const unsigned long RPM_TIMEOUT = 200000;   // 0.5s without pulse = 0 RPM
-// --- MECHANICAL CONFIGURATION ---
-const float PRIMARY_REDUCTION = 1.0f;   // Crank to input shaft
-const float GEAR_RATIO = 1.0f;        // Transmission gear ratio
-const float FINAL_DRIVE = 1.0f;         // Output to dyno shaft
-const int   MAGNET_COUNT = 1;           // Recommended for slow shafts
-// Combined total reduction factor
-const float ENGINE_TO_SHAFT_RATIO = PRIMARY_REDUCTION * GEAR_RATIO * FINAL_DRIVE;
+
 // PROTOCOL VERSION 1.0
-// Columns: RPM, Torque, HP, EGT
-const char* DATA_HEADER = "RPM,Torque,HP,EGT"; 
+// Columns: RPM, Torque, HP
+const char* DATA_HEADER = "RPM,Torque,HP"; 
 const int PROTOCOL_VERSION = 1;
 //rpm smoothing
 const int FILTER_SIZE = 3;
 unsigned long pulseBuffer[FILTER_SIZE] = {0};
 int bufferIndex = 0;
 unsigned long pulseSum = 0;
+
+// Helper to set RPM from GUI
+// This updates the Max RPM and recalculates the noise filter automatically
+void setDynoMaxRpm(int rpm) {
+  if(rpm < 2000) rpm = 2000;   // Safety lower limit
+  if(rpm > 20000) rpm = 20000; // Safety upper limit
+  globalMaxRpm = rpm;
+
+  // Recalculate Noise Filter
+  // Formula: 60,000,000 / (TargetNoiseRPM)
+  // We set the noise floor at MaxRPM + 20% headroom. 
+  // Example: If Max is 10k, filter rejects anything above 12k.
+  float noiseCeiling = (float)rpm * 1.20f; 
+  MIN_PULSE_DELTA = (unsigned long)(60000000.0f / noiseCeiling);
+}
+
+// --- CALLBACK: SLIDER ---
+// Updates Global Math Limit Only
+void slider_set_max_rpm(lv_event_t * e) {
+    lv_obj_t * slider = lv_event_get_target(e);
+    int val = (int)lv_slider_get_value(slider);
+    val = ((val + 250) / 500) * 500; // Snap to 500
+    setDynoMaxRpm(val);
+    
+    char buf[16];
+    lv_snprintf(buf, sizeof(buf), "%d RPM", val);
+    lv_label_set_text(ui_maxRpmLabel, buf);
+}
+
+// --- CALLBACK: TOGGLE GAUGE FACE ---
+// Updates Visual Gauge Background Only
+void toggleRpmScale(lv_event_t * e) {
+  // If showing 20k, switch to 10k
+  if (currentGaugeFaceLimit == 20000) {
+      currentGaugeFaceLimit = 10000;
+      
+      lv_img_set_src(ui_freestyleRpmGauge, &ui_img_rpm_gauge_png);
+      if(ui_dynoRunRpmGauge) lv_img_set_src(ui_dynoRunRpmGauge, &ui_img_rpm_gauge_png);
+  } 
+  // If showing 10k, switch to 20k
+  else {
+      currentGaugeFaceLimit = 20000;
+      
+      lv_img_set_src(ui_freestyleRpmGauge, &ui_img_rpm_gauge_high_png);
+      if(ui_dynoRunRpmGauge) lv_img_set_src(ui_dynoRunRpmGauge, &ui_img_rpm_gauge_high_png);
+  }
+}
+
+// --- CALLBACK: FINAL DRIVE TEXT AREA ---
+void final_drive_update(lv_event_t * e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t * ta = lv_event_get_target(e);
+
+    if(code == LV_EVENT_FOCUSED) {
+        lv_obj_clear_flag(ui_settingsKeyboard, LV_OBJ_FLAG_HIDDEN);
+        lv_keyboard_set_textarea(ui_settingsKeyboard, ta);
+    }
+    else if(code == LV_EVENT_READY || code == LV_EVENT_DEFOCUSED) {
+        const char * txt = lv_textarea_get_text(ta);
+        float val = atof(txt);
+        if(val <= 0.0f) val = 1.0f;
+        finalDriveRatio = val;
+        engineToShaftRatio = primaryReduction * gearRatio * finalDriveRatio;
+        lv_obj_add_flag(ui_settingsKeyboard, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+// --- CALLBACK: MAGNET COUNT TEXT AREA ---
+void magnet_count_update(lv_event_t * e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t * ta = lv_event_get_target(e);
+
+    if(code == LV_EVENT_FOCUSED) {
+        lv_obj_clear_flag(ui_settingsKeyboard, LV_OBJ_FLAG_HIDDEN);
+        lv_keyboard_set_textarea(ui_settingsKeyboard, ta);
+    }
+    else if(code == LV_EVENT_READY || code == LV_EVENT_DEFOCUSED) {
+        const char * txt = lv_textarea_get_text(ta);
+        int val = atoi(txt);
+        if(val < 1) val = 1;
+        magnetCount = val;
+        lv_obj_add_flag(ui_settingsKeyboard, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+// --- CALLBACK: CALIBRATION WEIGHT TEXT AREA ---
+void cal_weight_update(lv_event_t * e) {
+    lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t * ta = lv_event_get_target(e);
+
+    if(code == LV_EVENT_FOCUSED) {
+        lv_obj_clear_flag(ui_calibrationKeyboard, LV_OBJ_FLAG_HIDDEN);
+        lv_keyboard_set_textarea(ui_calibrationKeyboard, ta);
+    }
+    else if(code == LV_EVENT_READY || code == LV_EVENT_DEFOCUSED) {
+        const char * txt = lv_textarea_get_text(ta);
+        float val = atof(txt);
+        if(val <= 0.0f) val = 1.0f;
+        calibrationWeight = val;
+        lv_obj_add_flag(ui_calibrationKeyboard, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
 //Interupt for hall effect sensor
 void IRAM_ATTR rpm_isr() {
   static unsigned long prevInterval = 0; 
@@ -132,7 +243,6 @@ void IRAM_ATTR rpm_isr() {
   unsigned long interval = now - lastPulseTime;
 
   // 1. SAFETY RESET: If the gap is huge (>0.1s aka <600 RPM), the engine stopped or idled.
-  // We MUST accept this pulse to restart tracking, or we'll get stuck at 0.
   if (interval > 100000) {
     pulseDelta = interval;
     prevInterval = interval;
@@ -140,19 +250,12 @@ void IRAM_ATTR rpm_isr() {
     return;
   }
 
-  // 2. HARD NOISE FLOOR: 10,000 RPM (6000 microseconds)
-  // Anything faster is definitely a spark plug glitch.
-  if (interval < 6000) return; 
+  // Uses MIN_PULSE_DELTA based on globalMaxRpm
+  if (interval < MIN_PULSE_DELTA) return; 
 
-    // 3. THE "TIGHT" WINDOW (25% Acceleration Limit)
+    // 3. THE "TIGHT" WINDOW 
     // We check if the new interval is drastically shorter (faster RPM) than the last one.
-    // "prevInterval >> 2" divides by 4 (25%).
-    // So: Limit = Prev - (Prev/4) -> 75% of previous time.
     if (prevInterval > 0) {
-        // Multiplier format: (Interval * Percentage) / 100
-        // 60 means the new interval must be at least 60% of the old one
-        // Lower number = Lets MORE signal through (Easier to accelerate)
-        // Higher number = MORE filtering (rejects noise better
         unsigned long accelerationLimit = (prevInterval * 40) / 100; 
         if (interval < accelerationLimit) return; // REJECT: Too fast, too soon.
     }
@@ -216,6 +319,32 @@ void setup() {
   //Code to execute LVGL code generated by the drawing tool
   ui_init();
 
+  // Initialize Defaults
+  setDynoMaxRpm(7500); // Math limit
+  currentGaugeFaceLimit = 10000; // Default Visual (Low)
+  // Logic to pick the best face on boot
+  if(globalMaxRpm <= 10000) currentGaugeFaceLimit = 10000;
+  
+  // Apply visual state
+  if(currentGaugeFaceLimit == 10000) {
+      if(ui_freestyleRpmGauge) lv_img_set_src(ui_freestyleRpmGauge, &ui_img_rpm_gauge_png);
+      if(ui_dynoRunRpmGauge) lv_img_set_src(ui_dynoRunRpmGauge, &ui_img_rpm_gauge_png);
+  } else {
+      if(ui_freestyleRpmGauge) lv_img_set_src(ui_freestyleRpmGauge, &ui_img_rpm_gauge_high_png);
+      if(ui_dynoRunRpmGauge) lv_img_set_src(ui_dynoRunRpmGauge, &ui_img_rpm_gauge_high_png);
+  }
+
+  // Sync Slider to Math Limit
+  if(ui_maxRpmSlider) lv_slider_set_value(ui_maxRpmSlider, globalMaxRpm, LV_ANIM_OFF);
+  if(ui_maxRpmLabel) lv_label_set_text(ui_maxRpmLabel, "7500 RPM");
+  
+  // Sync Text Areas
+  if(ui_finalDriveTextArea) lv_textarea_set_text(ui_finalDriveTextArea, "1.00");
+  if(ui_magnetCountTextArea) lv_textarea_set_text(ui_magnetCountTextArea, "1");
+  if(ui_calWeightTextArea) lv_textarea_set_text(ui_calWeightTextArea, "20.0");
+
+  engineToShaftRatio = primaryReduction * gearRatio * finalDriveRatio;
+
   //attach interupt to hallPin
   pinMode(hallPin, INPUT_PULLDOWN); // Ensure pin is pulled low
   attachInterrupt(digitalPinToInterrupt(hallPin), rpm_isr, FALLING);
@@ -229,17 +358,16 @@ void setup() {
     1,                /* Priority of the task */
     &SensorTask,      /* Task handle */
     0);               /* Core 0 */
-    
 }
 
 //Function to zero out scale
 void calibrateLow(lv_event_t * e) {
-	noWeight = scale.read();
+	noWeight = scaleReading;
 }
 
 //Function to calibrate scales top end
 void calibrateHigh(lv_event_t * e) {
-	calibration = scale.read();
+	calibration = scaleReading;
 }
 
 //This function is called to start the dyno run
@@ -265,6 +393,72 @@ void resetMax(lv_event_t * e) {
   lv_textarea_set_text(ui_freestyleHorsepowerField, "0.00");
 }
 
+//Calling this function switches between high and low range torque and horsepower gauges
+void gaugeSelect(lv_event_t * e) {
+  lv_event_code_t event_code = lv_event_get_code(e);
+  lv_obj_t * target = lv_event_get_target(e);
+  
+  if(event_code == LV_EVENT_VALUE_CHANGED) {
+	  bool state = lv_obj_has_state(target, LV_STATE_CHECKED);
+    
+    // UPDATE FREESTYLE SCREEN
+    if(state == 0) {//0-40 (High)
+      lv_obj_add_flag(ui_freestyleSmallTorqueGauge, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(ui_freestyleSmallHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
+      lv_obj_clear_flag(ui_freestyleTorqueGauge, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(ui_freestyleHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
+    }
+    else if(state == 1) {//0-20 (Low)
+      lv_obj_add_flag(ui_freestyleTorqueGauge, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(ui_freestyleHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
+      lv_obj_clear_flag(ui_freestyleSmallTorqueGauge, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(ui_freestyleSmallHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
+    }
+
+    // UPDATE DYNO RUN SCREEN (Mirrors the Freestyle settings)
+    if(state == 0) {//0-40 (High)
+      lv_obj_add_flag(ui_dynoRunSmallTorqueGauge, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(ui_dynoRunSmallHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
+      lv_obj_clear_flag(ui_dynoRunTorqueGauge, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(ui_dynoRunHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
+    }
+    else if(state == 1) {//0-20 (Low)
+      lv_obj_add_flag(ui_dynoRunTorqueGauge, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_add_flag(ui_dynoRunHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
+      lv_obj_clear_flag(ui_dynoRunSmallTorqueGauge, LV_OBJ_FLAG_HIDDEN);
+      lv_obj_clear_flag(ui_dynoRunSmallHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
+    }
+  }
+}
+
+// Event callback to convert Chart Index to RPM Label
+static void chart_draw_event_cb(lv_event_t * e) {
+  lv_obj_draw_part_dsc_t * dsc = lv_event_get_draw_part_dsc(e);
+  
+  if(!lv_obj_draw_part_check_type(dsc, &lv_chart_class, LV_CHART_DRAW_PART_TICK_LABEL)) return;
+
+  if(dsc->id == LV_CHART_AXIS_PRIMARY_X) {
+      float tickIndex = (float)dsc->value;
+      float maxTickIndex = 9.0f; // 10 ticks = 0..9
+
+      float pct = tickIndex / maxTickIndex;
+      if(pct < 0) pct = 0;
+
+      // FIXED SCALE: Now uses globalMaxRpm
+      float range_width = (float)globalMaxRpm / (float)MAX_BINS;
+      float maxRpmDisplayed = activeGraphBinCount * range_width;
+      
+      float calculatedRpm = pct * maxRpmDisplayed;
+
+      // Integer math formatting: 5200 -> "5.2k"
+      int val = (int)(calculatedRpm / 100); 
+      int whole = val / 10;                 
+      int decimal = val % 10;               
+      
+      lv_snprintf(dsc->text, dsc->text_length, "%d.%dk", whole, decimal);
+  }
+}
+
 //Function name should be explicit enough
 void drawChart(lv_event_t * e) {
   // 1. Stop Logging if active
@@ -279,100 +473,79 @@ void drawChart(lv_event_t * e) {
     lv_obj_set_width(ui_Chart, 700);
     lv_obj_set_height(ui_Chart, 325);
     lv_obj_set_x(ui_Chart, 0);
-    lv_obj_set_y(ui_Chart, -60);
+    lv_obj_set_y(ui_Chart, -60); // Moved up slightly to make room for X-labels
     lv_obj_set_align(ui_Chart, LV_ALIGN_CENTER);
     lv_chart_set_type(ui_Chart, LV_CHART_TYPE_LINE);
       
-    // Visual styling (Move this inside the creation block so we don't re-apply it constantly)
-    lv_chart_set_div_line_count(ui_Chart, 5, 16);
-    lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_PRIMARY_X, 10, 5, 16, 2, false, 50);
+    // Visual styling
+    // Note: Changed 7th argument to 'true' to ENABLE built-in X-axis labels
+    lv_chart_set_div_line_count(ui_Chart, 5, 10); 
+    lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_PRIMARY_X, 10, 5, 10, 1, true, 50); 
     lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 5, 2, true, 50);
     lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_SECONDARY_Y, 10, 5, 5, 2, true, 25);  
     lv_obj_set_style_bg_img_src(ui_Chart, &ui_img_carbon_fiber3_png, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_color(ui_Chart, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_Chart, &ui_font_tomorrow18, LV_PART_TICKS | LV_STATE_DEFAULT);
-    lv_obj_set_style_size(ui_Chart, 0, LV_PART_INDICATOR);
+    lv_obj_set_style_size(ui_Chart, 0, LV_PART_INDICATOR); // Hide dots
       
+    // Add the event callback for custom RPM labels
+    lv_obj_add_event_cb(ui_Chart, chart_draw_event_cb, LV_EVENT_DRAW_PART_BEGIN, NULL);
+
     // Initialize Series ONLY ONCE
     lv_chart_add_series(ui_Chart, lv_color_hex(0x2D00FF), LV_CHART_AXIS_PRIMARY_Y);
     lv_chart_add_series(ui_Chart, lv_color_hex(0xFF0000), LV_CHART_AXIS_SECONDARY_Y);
   }
+  
+  // --- AUTO SCALING LOGIC ---
 
-  // 3. ALWAYS UPDATE RANGES (In case user switched range settings)
-  lv_chart_set_point_count(ui_Chart, MAX_BINS);
-  lv_chart_set_range(ui_Chart, LV_CHART_AXIS_PRIMARY_Y, 0, torqueGraphRange);
-  lv_chart_set_range(ui_Chart, LV_CHART_AXIS_SECONDARY_Y, 0, horsepowerGraphRange);
+  // 1. Calculate Y-Axis Scale (Torque/HP)
+  // Find highest value between maxTorque and maxHP
+  float peakVal = (maxTorque > maxHorsepower) ? maxTorque : maxHorsepower;
+  
+  // Convert to chart units (x100 based on your loop logic)
+  int autoRangeY = (int)(peakVal * 100.0f);
+  
+  // Add 10% Headroom so the line doesn't hit the very top
+  autoRangeY = (int)(autoRangeY * 1.10f);
+  
+  // Safety: Prevent range from being 0 if no run data exists
+  if(autoRangeY < 1000) autoRangeY = 1000; 
 
-  // 4. UPDATE DATA (Get the series we created earlier)
-  lv_chart_series_t * ser1 = lv_chart_get_series_next(ui_Chart, NULL); // Get first series (Red/Torque)
-  lv_chart_series_t * ser2 = lv_chart_get_series_next(ui_Chart, ser1); // Get second series (Blue/HP)
+  // Apply Y Range
+  lv_chart_set_range(ui_Chart, LV_CHART_AXIS_PRIMARY_Y, 0, autoRangeY);
+  lv_chart_set_range(ui_Chart, LV_CHART_AXIS_SECONDARY_Y, 0, autoRangeY);
 
-  for(int i = 0; i < MAX_BINS; i++) {
+  // 2. Calculate X-Axis Scale (Data Trimming)
+  // Scan backwards to find the last bin that actually has data
+  int lastActiveBin = MAX_BINS - 1;
+  for(int i = MAX_BINS - 1; i >= 0; i--) {
+    if(t_bins[i] > 0 || h_bins[i] > 0) {
+      lastActiveBin = i;
+      break;
+    }
+  }
+
+  // If the run was very short (noise), show at least 20% of the graph
+  if(lastActiveBin < 10) lastActiveBin = 10; 
+
+  // Store this globally so the label callback knows how wide the chart is
+  activeGraphBinCount = lastActiveBin + 1;
+
+  // Set the point count to match our data length
+  // This effectively "Zooms" the X-axis to fit the data
+  lv_chart_set_point_count(ui_Chart, activeGraphBinCount);
+
+  // 3. UPDATE DATA 
+  lv_chart_series_t * ser1 = lv_chart_get_series_next(ui_Chart, NULL); 
+  lv_chart_series_t * ser2 = lv_chart_get_series_next(ui_Chart, ser1);
+
+  // Only copy the bins that contain data
+  for(int i = 0; i < activeGraphBinCount; i++) {
     ser1->y_points[i] = t_bins[i];
     ser2->y_points[i] = h_bins[i];
   }
 
-  lv_chart_refresh(ui_Chart); // Force LVGL to redraw it now
-}
-
-//Calling this function switches between high and low range torque and horsepower gauges on the freestyle screen
-void gaugeSelect(lv_event_t * e) {
-  lv_event_code_t event_code = lv_event_get_code(e);
-  lv_obj_t * target = lv_event_get_target(e);
-  if(event_code == LV_EVENT_VALUE_CHANGED) {
-	  bool state = lv_obj_has_state(target, LV_STATE_CHECKED);
-    if(state == 0) {//0-40
-      lv_obj_add_flag(ui_freestyleSmallTorqueGauge, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_add_flag(ui_freestyleSmallHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
-      lv_obj_clear_flag(ui_freestyleTorqueGauge, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_clear_flag(ui_freestyleHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
-    }
-    else if(state == 1) {//0-20
-      lv_obj_add_flag(ui_freestyleTorqueGauge, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_add_flag(ui_freestyleHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
-      lv_obj_clear_flag(ui_freestyleSmallTorqueGauge, LV_OBJ_FLAG_HIDDEN);
-      lv_obj_clear_flag(ui_freestyleSmallHorsepowerGauge, LV_OBJ_FLAG_HIDDEN); 
-    }
-  }
-}
-
-//Calling this function switches the RPM range of the graph
-void rpmRangeSelect(lv_event_t * e) {
-  lv_event_code_t event_code = lv_event_get_code(e);
-  lv_obj_t * target = lv_event_get_target(e);
-  if(event_code == LV_EVENT_VALUE_CHANGED) {
-    lastBinIndex = -1;
-	  bool state = lv_obj_has_state(target, LV_STATE_CHECKED);
-    if(state == 0) {
-      rpmRange = 0; //1000-5000 RPM
-      Serial.println(rpmRange);
-    }
-    else if(state == 1) {
-      rpmRange = 1; //0-10000 RPM
-      Serial.println(rpmRange);
-    }
-  }
-}
-
-//The following fuctions set the Y scale of the graph
-void firstTorqueRange(lv_event_t * e) {
-  torqueGraphRange = 1000;
-  horsepowerGraphRange = 1000;
-}
-
-void secondTorqueRange(lv_event_t * e) {
-  torqueGraphRange = 2000;
-  horsepowerGraphRange = 2000;
-}
-
-void thirdTorqueRange(lv_event_t * e) {
-  torqueGraphRange = 3000;
-  horsepowerGraphRange = 3000;
-}
-
-void fourthTorqueRange(lv_event_t * e) {
-  torqueGraphRange = 4000;
-  horsepowerGraphRange = 4000;
+  lv_chart_refresh(ui_Chart); 
 }
 
 void checkSerialCommands() {
@@ -405,16 +578,30 @@ void updateDynoUI() {
   lv_img_set_angle(ui_dynoRunTorqueGaugeNeedle, torqueNeedlePos);
   lv_img_set_angle(ui_freestyleTorqueGaugeNeedle, torqueNeedlePos);
   lv_img_set_angle(ui_calibrationGaugeNeedle, torqueNeedlePos);
-  lv_img_set_angle(ui_freestyleSmallTorqueGaugeNeedle, torqueNeedlePos*2);
+  
+  // Update "Small" torque gauges (x2 speed because it's a smaller range)
+  if(ui_freestyleSmallTorqueGaugeNeedle) lv_img_set_angle(ui_freestyleSmallTorqueGaugeNeedle, torqueNeedlePos*2);
+  if(ui_dynoRunSmallTorqueGaugeNeedle) lv_img_set_angle(ui_dynoRunSmallTorqueGaugeNeedle, torqueNeedlePos*2);
 
   //Set needle position for all horsepower gauges
   horsepowerNeedlePos = (long)(snapHorsepower * 62.5f);
   lv_img_set_angle(ui_dynoRunHorsepowerGaugeNeedle, horsepowerNeedlePos);
   lv_img_set_angle(ui_freestyleHorsepowerGaugeNeedle, horsepowerNeedlePos);
-  lv_img_set_angle(ui_freestyleSmallHorsepowerGaugeNeedle, horsepowerNeedlePos*2);
 
-  //Set needle position for RPM gauges
-  rpmNeedlePos = map(snapRpm, 0, 10000, 0, 2500);
+  // Update "Small" HP gauges
+  if(ui_freestyleSmallHorsepowerGaugeNeedle) lv_img_set_angle(ui_freestyleSmallHorsepowerGaugeNeedle, horsepowerNeedlePos*2);
+  if(ui_dynoRunSmallHorsepowerGaugeNeedle) lv_img_set_angle(ui_dynoRunSmallHorsepowerGaugeNeedle, horsepowerNeedlePos*2);
+
+  // --- DECOUPLED RPM MAPPING ---
+  // Map snapRpm to the current visual gauge limit (10k or 20k), NOT globalMaxRpm
+  long needleMap = map(snapRpm, 0, currentGaugeFaceLimit, 0, 2500);
+  
+  // CLAMP: Prevent needle wrap-around if engine exceeds gauge face
+  if (needleMap > 2500) needleMap = 2500; 
+  if (needleMap < 0) needleMap = 0;
+
+  rpmNeedlePos = (int)needleMap;
+  
   lv_img_set_angle(ui_freestyleRpmGaugeNeedle, rpmNeedlePos);
   lv_img_set_angle(ui_dynoRunRpmGaugeNeedle, rpmNeedlePos);
 
@@ -483,9 +670,8 @@ void loop() {
     unsigned long averageDelta = pulseSum / FILTER_SIZE;
 
     if (averageDelta > 0) {
-      float shaftRpm = (60000000.0f / (float)averageDelta) / (float)MAGNET_COUNT;
-      rpm = (int)(shaftRpm * ENGINE_TO_SHAFT_RATIO);
-      
+      float shaftRpm = (60000000.0f / (float)averageDelta) / (float)magnetCount;
+      rpm = (int)(shaftRpm * engineToShaftRatio);
       
       lastBinIndex = binIndex;
     }
@@ -515,22 +701,20 @@ void loop() {
   }
 
   // --- DYNAMIC SCALING CALCULATION ---
-  if(rpmRange == 1) { // 0-10,000 RPM Mode
-    lv_label_set_text(ui_chartScreenChartXLabel, "20      25      31      36      41     47      52     57      63     68     73      79      84      89      95     100");
-    float range_low = 2000.0f;
-    float range_high = 10000.0f;
-    float range_width = (range_high - range_low) / (float)MAX_BINS;
-    float mapRpm = (snapRpm < range_low) ? range_low : snapRpm;
-    binIndex = (int)((mapRpm - range_low) / range_width);
-  } 
-  else { // 1,000-5,000 RPM Mode
-    lv_label_set_text(ui_chartScreenChartXLabel, "10      12      15      18      20     23      25     28      31     33     36     38      41      44      47      50");
-    float range_low = 1000.0f;
-    float range_high = 5000.0f;
-    float range_width = (range_high - range_low) / (float)MAX_BINS;
-    float mapRpm = (snapRpm < range_low) ? range_low : snapRpm;
-    binIndex = (int)((mapRpm - range_low) / range_width);
-  }
+  // Replaced with single 0-20,000 RPM Master Scale
+  // CHANGED: Uses dynamic globalMaxRpm
+  float range_low = 0.0f;
+  float range_high = (float)globalMaxRpm;
+  
+  // Safety: Prevent division by zero if constants change
+  float range_width = (range_high - range_low) / (float)MAX_BINS;
+  
+  // Clamp RPM to range
+  float mapRpm = snapRpm;
+  if (mapRpm < range_low) mapRpm = range_low;
+  if (mapRpm > range_high) mapRpm = range_high;
+
+  binIndex = (int)((mapRpm - range_low) / range_width);
 
   // --- ROBUST GAP FILLING INTERPOLATION ---
   if (binIndex >= 0 && binIndex < MAX_BINS && lastBinIndex != -1) {
@@ -632,10 +816,10 @@ void SensorTaskLoop(void * pvParameters) {
       float rawRange = (float)(calibration - noWeight);
       if (rawRange != 0) {
         // 1. Calculate the Torque at the BRAKE (Shaft)
-        float shaftTorque = ((float)(scaleReading - noWeight) / rawRange) * 20.0f;
+        float shaftTorque = ((float)(scaleReading - noWeight) / rawRange) * calibrationWeight;
         // 2. Correct back to ENGINE Torque based on gearing
         if (xSemaphoreTake(dataMutex, portMAX_DELAY)) {
-          torque = shaftTorque * ENGINE_TO_SHAFT_RATIO;
+          torque = shaftTorque * engineToShaftRatio;
           xSemaphoreGive(dataMutex);
         }
       }  

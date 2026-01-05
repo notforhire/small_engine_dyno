@@ -5,6 +5,7 @@ void ui_freestyleScreen_screen_init(void)
     ui_freestyleScreen = lv_obj_create(NULL);
     lv_obj_set_style_bg_img_src(ui_freestyleScreen, &ui_img_carbon_fiber3_png, LV_PART_MAIN | LV_STATE_DEFAULT);
 
+    // --- LARGE TORQUE GAUGE ---
     ui_freestyleTorqueGauge = lv_img_create(ui_freestyleScreen);
     lv_img_set_src(ui_freestyleTorqueGauge, &ui_img_hp_gauge_png);
     lv_obj_set_width(ui_freestyleTorqueGauge, LV_SIZE_CONTENT);
@@ -33,11 +34,10 @@ void ui_freestyleScreen_screen_init(void)
     lv_arc_set_bg_angles(ui_freestyleTorqueGaugeArc, 0, 360);
     lv_obj_set_style_opa(ui_freestyleTorqueGaugeArc, 190, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_color(ui_freestyleTorqueGaugeArc, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_arc_opa(ui_freestyleTorqueGaugeArc, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_width(ui_freestyleTorqueGaugeArc, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(ui_freestyleTorqueGaugeArc, lv_color_hex(0xFFFFFF), LV_PART_KNOB | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_freestyleTorqueGaugeArc, 0, LV_PART_KNOB | LV_STATE_DEFAULT);
 
+    // --- LARGE HORSEPOWER GAUGE ---
     ui_freestyleHorsepowerGauge = lv_img_create(ui_freestyleScreen);
     lv_img_set_src(ui_freestyleHorsepowerGauge, &ui_img_hp_gauge_png);
     lv_obj_set_width(ui_freestyleHorsepowerGauge, LV_SIZE_CONTENT);
@@ -66,11 +66,10 @@ void ui_freestyleScreen_screen_init(void)
     lv_arc_set_bg_angles(ui_freestyleHorsepowerGaugeArc, 0, 360);
     lv_obj_set_style_opa(ui_freestyleHorsepowerGaugeArc, 190, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_color(ui_freestyleHorsepowerGaugeArc, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_arc_opa(ui_freestyleHorsepowerGaugeArc, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_width(ui_freestyleHorsepowerGaugeArc, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(ui_freestyleHorsepowerGaugeArc, lv_color_hex(0xFFFFFF), LV_PART_KNOB | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_freestyleHorsepowerGaugeArc, 0, LV_PART_KNOB | LV_STATE_DEFAULT);
 
+    // --- RPM GAUGE ---
     ui_freestyleRpmGauge = lv_img_create(ui_freestyleScreen);
     lv_img_set_src(ui_freestyleRpmGauge, &ui_img_rpm_gauge_png);
     lv_obj_set_width(ui_freestyleRpmGauge, LV_SIZE_CONTENT);
@@ -99,11 +98,10 @@ void ui_freestyleScreen_screen_init(void)
     lv_arc_set_bg_angles(ui_freestyleRpmGaugeArc, 0, 360);
     lv_obj_set_style_opa(ui_freestyleRpmGaugeArc, 190, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_color(ui_freestyleRpmGaugeArc, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_arc_opa(ui_freestyleRpmGaugeArc, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_arc_width(ui_freestyleRpmGaugeArc, 4, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(ui_freestyleRpmGaugeArc, lv_color_hex(0xFFFFFF), LV_PART_KNOB | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_freestyleRpmGaugeArc, 0, LV_PART_KNOB | LV_STATE_DEFAULT);
 
+    // --- BUTTONS ---
     ui_freestyleHomeButton = lv_img_create(ui_freestyleScreen);
     lv_img_set_src(ui_freestyleHomeButton, &ui_img_green_button_long_png);
     lv_obj_set_width(ui_freestyleHomeButton, LV_SIZE_CONTENT);
@@ -116,8 +114,6 @@ void ui_freestyleScreen_screen_init(void)
     lv_obj_set_style_opa(ui_freestyleHomeButton, 220, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_freestyleHomeButtonLabel = lv_label_create(ui_freestyleHomeButton);
-    lv_obj_set_width(ui_freestyleHomeButtonLabel, LV_SIZE_CONTENT);
-    lv_obj_set_height(ui_freestyleHomeButtonLabel, LV_SIZE_CONTENT);
     lv_obj_set_align(ui_freestyleHomeButtonLabel, LV_ALIGN_CENTER);
     lv_label_set_text(ui_freestyleHomeButtonLabel, "Home");
     lv_obj_set_style_text_font(ui_freestyleHomeButtonLabel, &ui_font_tomorrow, LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -134,15 +130,12 @@ void ui_freestyleScreen_screen_init(void)
     lv_obj_set_style_opa(ui_freestyleChartButton, 220, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_freestyleChartButtonLabel = lv_label_create(ui_freestyleChartButton);
-    lv_obj_set_width(ui_freestyleChartButtonLabel, LV_SIZE_CONTENT);
-    lv_obj_set_height(ui_freestyleChartButtonLabel, LV_SIZE_CONTENT);
     lv_obj_set_align(ui_freestyleChartButtonLabel, LV_ALIGN_CENTER);
     lv_label_set_text(ui_freestyleChartButtonLabel, "Chart");
     lv_obj_set_style_text_font(ui_freestyleChartButtonLabel, &ui_font_tomorrow, LV_PART_MAIN | LV_STATE_DEFAULT);
 
+    // --- TEXT LABELS & FIELDS ---
     ui_freestyleTorquelabel = lv_label_create(ui_freestyleScreen);
-    lv_obj_set_width(ui_freestyleTorquelabel, LV_SIZE_CONTENT);
-    lv_obj_set_height(ui_freestyleTorquelabel, LV_SIZE_CONTENT);
     lv_obj_set_x(ui_freestyleTorquelabel, -125);
     lv_obj_set_y(ui_freestyleTorquelabel, 125);
     lv_obj_set_align(ui_freestyleTorquelabel, LV_ALIGN_CENTER);
@@ -152,8 +145,6 @@ void ui_freestyleScreen_screen_init(void)
     lv_obj_set_style_bg_opa(ui_freestyleTorquelabel, 70, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_freestyleHorsepowerLabel = lv_label_create(ui_freestyleScreen);
-    lv_obj_set_width(ui_freestyleHorsepowerLabel, LV_SIZE_CONTENT);
-    lv_obj_set_height(ui_freestyleHorsepowerLabel, LV_SIZE_CONTENT);
     lv_obj_set_x(ui_freestyleHorsepowerLabel, -126);
     lv_obj_set_y(ui_freestyleHorsepowerLabel, 200);
     lv_obj_set_align(ui_freestyleHorsepowerLabel, LV_ALIGN_CENTER);
@@ -169,13 +160,10 @@ void ui_freestyleScreen_screen_init(void)
     lv_obj_set_y(ui_freestyleTorqueField, 125);
     lv_obj_set_align(ui_freestyleTorqueField, LV_ALIGN_CENTER);
     lv_textarea_set_text(ui_freestyleTorqueField, "39.99");
-    lv_textarea_set_placeholder_text(ui_freestyleTorqueField, "Waiting....");
     lv_textarea_set_one_line(ui_freestyleTorqueField, true);
     lv_obj_clear_flag(ui_freestyleTorqueField, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_text_color(ui_freestyleTorqueField, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_text_opa(ui_freestyleTorqueField, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_freestyleTorqueField, &ui_font_tomorrow, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(ui_freestyleTorqueField, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_freestyleTorqueField, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_freestyleTorqueField, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
 
@@ -186,7 +174,6 @@ void ui_freestyleScreen_screen_init(void)
     lv_obj_set_y(ui_freestyleHorsepowerField, 200);
     lv_obj_set_align(ui_freestyleHorsepowerField, LV_ALIGN_CENTER);
     lv_textarea_set_text(ui_freestyleHorsepowerField, "39.99");
-    lv_textarea_set_placeholder_text(ui_freestyleHorsepowerField, "Waiting....");
     lv_textarea_set_one_line(ui_freestyleHorsepowerField, true);
     lv_obj_set_style_text_font(ui_freestyleHorsepowerField, &ui_font_tomorrow, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_color(ui_freestyleHorsepowerField, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -200,7 +187,6 @@ void ui_freestyleScreen_screen_init(void)
     lv_obj_set_y(ui_freestyleTorqueRpmField, 125);
     lv_obj_set_align(ui_freestyleTorqueRpmField, LV_ALIGN_CENTER);
     lv_textarea_set_text(ui_freestyleTorqueRpmField, "9999");
-    lv_textarea_set_placeholder_text(ui_freestyleTorqueRpmField, "Waiting....");
     lv_textarea_set_one_line(ui_freestyleTorqueRpmField, true);
     lv_obj_set_style_text_font(ui_freestyleTorqueRpmField, &ui_font_tomorrow, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_color(ui_freestyleTorqueRpmField, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
@@ -214,13 +200,13 @@ void ui_freestyleScreen_screen_init(void)
     lv_obj_set_y(ui_freestyleHorsepowerRpmField, 200);
     lv_obj_set_align(ui_freestyleHorsepowerRpmField, LV_ALIGN_CENTER);
     lv_textarea_set_text(ui_freestyleHorsepowerRpmField, "9999");
-    lv_textarea_set_placeholder_text(ui_freestyleHorsepowerRpmField, "Waiting....");
     lv_textarea_set_one_line(ui_freestyleHorsepowerRpmField, true);
     lv_obj_set_style_text_font(ui_freestyleHorsepowerRpmField, &ui_font_tomorrow, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_color(ui_freestyleHorsepowerRpmField, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_bg_opa(ui_freestyleHorsepowerRpmField, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_width(ui_freestyleHorsepowerRpmField, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
     
+    // --- SMALL GAUGES (RESTORED) ---
     ui_freestyleSmallHorsepowerGauge = lv_img_create(ui_freestyleScreen);
     lv_img_set_src(ui_freestyleSmallHorsepowerGauge, &ui_img_hp_gauge_pussy_png);
     lv_obj_set_width(ui_freestyleSmallHorsepowerGauge, LV_SIZE_CONTENT);
@@ -259,6 +245,7 @@ void ui_freestyleScreen_screen_init(void)
     lv_obj_set_align(ui_freestyleSmallTorqueGaugeNeedle, LV_ALIGN_CENTER);
     lv_img_set_pivot(ui_freestyleSmallTorqueGaugeNeedle, 10, -36);
 
+    // --- RANGE SWITCH ---
     ui_rangeSelectSwitch = lv_switch_create(ui_freestyleScreen);
     lv_obj_set_width(ui_rangeSelectSwitch, 139);
     lv_obj_set_height(ui_rangeSelectSwitch, 50);
@@ -306,8 +293,10 @@ void ui_freestyleScreen_screen_init(void)
     lv_label_set_text(ui_gaugeLabel, "ft/lbs                                                         RPM                                                              HP");
     lv_obj_set_style_text_font(ui_gaugeLabel, &ui_font_tomorrow18, LV_PART_MAIN | LV_STATE_DEFAULT);
 
+    lv_obj_add_flag(ui_freestyleRpmGauge, LV_OBJ_FLAG_CLICKABLE); // Enable touch
+    lv_obj_add_event_cb(ui_freestyleRpmGauge, toggleRpmScale, LV_EVENT_CLICKED, NULL); // Attach function
     lv_obj_add_event_cb(ui_freestyleHomeButton, ui_event_freestyleHomeButton, LV_EVENT_ALL, NULL);
     lv_obj_add_event_cb(ui_freestyleChartButton, ui_event_freestyleChartButton, LV_EVENT_ALL, NULL);
-    lv_obj_add_event_cb(ui_rangeSelectSwitch, ui_event_rangeSelectSwitch, LV_EVENT_ALL, NULL);
-
+    // Directly call the gaugeSelect function in main.cpp
+    lv_obj_add_event_cb(ui_rangeSelectSwitch, gaugeSelect, LV_EVENT_ALL, NULL);
 }
