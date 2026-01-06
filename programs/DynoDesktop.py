@@ -465,10 +465,11 @@ class DynoApp:
             self.ser.close()
     
         port = self.port_combo.get()
-    
-        # 4. RUN ESPTOOL AS A COMMAND (This fixes the path issue!)
-        cmd = [
-            "esptool.py", # or just "esptool" depending on install
+        
+        # --- NEW CODE FOR PORTABILITY ---
+        # Do not use "esptool.py" as a command string. 
+        # Pass the arguments directly to the library's main function.
+        esptool_args = [
             "--port", port,
             "--baud", "460800",
             "--before", "default_reset",
@@ -483,17 +484,19 @@ class DynoApp:
         self.root.update()
 
         try:
-            # This runs the command exactly like typing it in the terminal
-            subprocess.check_call(cmd) 
+            # CALL INTERNAL FUNCTION INSTEAD OF SUBPROCESS
+            # We redirect stdout/stderr to suppress console spam if needed, 
+            # or you can let it print to the terminal if you launched it there.
+            import esptool
+            esptool.main(esptool_args)
         
             messagebox.showinfo("Success", "Firmware Updated Successfully!")
             self.status_label.config(text="UPDATE COMPLETE", fg="#2ecc71")
 
-        except subprocess.CalledProcessError as e:
-            messagebox.showerror("Update Failed", f"The flashing process failed.\nExit Code: {e.returncode}")
+        except Exception as e:
+            # esptool.main() raises an exception on failure
+            messagebox.showerror("Update Failed", f"The flashing process failed.\nError: {e}")
             self.status_label.config(text="UPDATE FAILED", fg="red")
-        except FileNotFoundError:
-            messagebox.showerror("Error", "esptool not found!\n\nRun: pip install esptool")
 
 if __name__ == "__main__":
     try:
