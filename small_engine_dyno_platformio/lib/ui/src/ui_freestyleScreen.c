@@ -293,6 +293,34 @@ void ui_freestyleScreen_screen_init(void)
     lv_label_set_text(ui_gaugeLabel, "ft/lbs                                                         RPM                                                              HP");
     lv_obj_set_style_text_font(ui_gaugeLabel, &ui_font_tomorrow18, LV_PART_MAIN | LV_STATE_DEFAULT);
 
+    ui_LabelEGT = lv_label_create(ui_freestyleScreen);
+    lv_obj_set_width(ui_LabelEGT, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_LabelEGT, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_LabelEGT, -135);
+    lv_obj_set_y(ui_LabelEGT, 20); 
+    lv_obj_set_align(ui_LabelEGT, LV_ALIGN_CENTER);
+    lv_obj_set_style_text_align(ui_LabelEGT, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(ui_LabelEGT, "EGT\n000 F");
+    lv_obj_set_style_text_color(ui_LabelEGT, lv_color_hex(0xFFFF00), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_LabelEGT, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_LabelEGT, &ui_font_tomorrow, LV_PART_MAIN | LV_STATE_DEFAULT);
+    // HIDE BY DEFAULT - Unhidden in main.cpp if sensor found
+    lv_obj_add_flag(ui_LabelEGT, LV_OBJ_FLAG_HIDDEN);
+
+    ui_LabelAFR = lv_label_create(ui_freestyleScreen);
+    lv_obj_set_width(ui_LabelAFR, LV_SIZE_CONTENT);   /// 1
+    lv_obj_set_height(ui_LabelAFR, LV_SIZE_CONTENT);    /// 1
+    lv_obj_set_x(ui_LabelAFR, 135);
+    lv_obj_set_y(ui_LabelAFR, 20); 
+    lv_obj_set_align(ui_LabelAFR, LV_ALIGN_CENTER);
+    lv_obj_set_style_text_align(ui_LabelAFR, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(ui_LabelAFR, "AFR\n000 ");
+    lv_obj_set_style_text_color(ui_LabelAFR, lv_color_hex(0xFFFF00), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_opa(ui_LabelAFR, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_LabelAFR, &ui_font_tomorrow, LV_PART_MAIN | LV_STATE_DEFAULT);
+    // HIDE BY DEFAULT - Unhidden in main.cpp if sensor found
+    //lv_obj_add_flag(ui_LabelAFR, LV_OBJ_FLAG_HIDDEN);
+
     lv_obj_add_flag(ui_freestyleRpmGauge, LV_OBJ_FLAG_CLICKABLE); // Enable touch
     lv_obj_add_event_cb(ui_freestyleRpmGauge, toggleRpmScale, LV_EVENT_CLICKED, NULL); // Attach function
     lv_obj_add_event_cb(ui_freestyleHomeButton, ui_event_freestyleHomeButton, LV_EVENT_ALL, NULL);

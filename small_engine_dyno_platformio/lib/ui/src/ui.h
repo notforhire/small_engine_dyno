@@ -118,6 +118,8 @@ extern lv_obj_t * ui_freestyleRpmGaugeArc;
 extern lv_obj_t * ui_freestyleHorsepowerGaugeArc;
 extern lv_obj_t * ui_freestyleTorqueGaugeArc;
 extern lv_obj_t * ui_gaugeLabel;
+extern lv_obj_t * ui_LabelEGT;
+extern lv_obj_t * ui_LabelAFR;
 
 // --- DYNO RUN GAUGE SCREEN ---
 void ui_dynoRunGaugeScreen_screen_init(void);

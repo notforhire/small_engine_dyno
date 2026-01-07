@@ -93,6 +93,8 @@ lv_obj_t * ui_freestyleRpmGaugeArc;
 lv_obj_t * ui_freestyleHorsepowerGaugeArc;
 lv_obj_t * ui_freestyleTorqueGaugeArc;
 lv_obj_t * ui_gaugeLabel;
+lv_obj_t * ui_LabelEGT;
+lv_obj_t * ui_LabelAFR;
 
 // --- DYNO RUN GAUGE SCREEN ---
 lv_obj_t * ui_dynoRunGaugeScreen;
