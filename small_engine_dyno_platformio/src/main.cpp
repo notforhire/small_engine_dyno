@@ -1,4 +1,4 @@
-//Available pins on 8048S070 are 11, 12, 13, 17, 18 Used; 12/Hall Trigger, 13 wideband controller, 17/hx711 clk, 18 hx711 data 
+//Available pins on 8048S070 are 11, 12, 13, 17, 18 Used; 12/Hall Trigger, 11 wideband controller, 17/hx711 clk, 18 hx711 data 
 
 #include <Arduino.h>
 #include <lvgl.h>
@@ -7,6 +7,8 @@
 #include "HX711.h"
 #include <Wire.h>
 #include "Adafruit_MCP9600.h"
+#include <Preferences.h> // Native ESP32 library for saving settings
+Preferences preferences; // Create the storage object
 
 Adafruit_MCP9600 mcp;
 
@@ -96,7 +98,7 @@ int activeGraphBinCount = MAX_BINS; // Global variable to share the active bin c
 int globalMaxRpm = 20000; // The Mathematical Limit (Slider)
 volatile unsigned long MIN_PULSE_DELTA = 3000; // Calculated based on globalMaxRpm
 long runTime = 10000;  //The runMode will last for 10 seconds
-const unsigned long RPM_TIMEOUT = 200000;   // 0.5s without pulse = 0 RPM
+unsigned long currentRpmTimeout = 200000;   // 0.5s without pulse = 0 RPM
 const int FILTER_SIZE = 3; //rpm smoothing
 float primaryReduction = 1.0f;   
 float gearRatio = 1.0f;        
@@ -121,19 +123,39 @@ lv_chart_series_t * global_ser_afr = NULL;
 //Drawing
 int currentGaugeFaceLimit = 20000; // The Visual Limit (Gauge Face)
 
+void recalculateNoiseFilter() {
+  // 1. Calculate the physical limit of the SHAFT based on engine settings
+  // Formula: ShaftRPM = EngineRPM / Ratio
+  // Safety: Prevent divide by zero
+  float ratio = engineToShaftRatio;
+  if (ratio < 0.1f) ratio = 1.0f; 
+  
+  float maxShaftRpm = (float)globalMaxRpm / ratio;
+
+  // 2. Add 20% Headroom for the "Noise Ceiling"
+  float noiseCeilingShaft = maxShaftRpm * 1.20f;
+
+  // 3. Calculate the shortest allowed time between pulses (Microseconds)
+  // Formula: (60,000,000 / RPM) / Magnets
+  // This tells us: "If a pulse comes in faster than this, it's noise."
+  MIN_PULSE_DELTA = (unsigned long)((60000000.0f / noiseCeilingShaft) / (float)magnetCount);
+  
+  // Base timeout (200ms) * Ratio. 
+  // If Ratio is 4.0, Timeout becomes 800ms to handle the slower shaft.
+  currentRpmTimeout = 200000 * engineToShaftRatio;
+
+  // Debug line (Optional - check Serial Monitor to see it working)
+  // Serial.printf("New Filter Limit: %lu us (Max Shaft RPM: %.0f)\n", MIN_PULSE_DELTA, maxShaftRpm);
+}
 // Helper to set RPM from GUI
 // This updates the Max RPM and recalculates the noise filter automatically
 void setDynoMaxRpm(int rpm) {
-  if(rpm < 2000) rpm = 2000;   // Safety lower limit
-  if(rpm > 20000) rpm = 20000; // Safety upper limit
+  if(rpm < 2000) rpm = 2000;   
+  if(rpm > 20000) rpm = 20000; 
   globalMaxRpm = rpm;
 
-  // Recalculate Noise Filter
-  // Formula: 60,000,000 / (TargetNoiseRPM)
-  // We set the noise floor at MaxRPM + 20% headroom. 
-  // Example: If Max is 10k, filter rejects anything above 12k.
-  float noiseCeiling = (float)rpm * 1.20f; 
-  MIN_PULSE_DELTA = (unsigned long)(60000000.0f / noiseCeiling);
+  // Call the central calculator
+  recalculateNoiseFilter(); 
 }
 
 //Display flushing
@@ -171,7 +193,7 @@ void my_touchpad_read( lv_indev_drv_t * indev_driver, lv_indev_data_t * data ) {
 
 // PROTOCOL VERSION 1.0
 // Columns: RPM, Torque, HP, EGT, AFR
-const char* DATA_HEADER = "RPM,Torque,HP,EGT, AFR"; 
+const char* DATA_HEADER = "RPM,Torque,HP,EGT,AFR"; 
 const int PROTOCOL_VERSION = 1;
 
 unsigned long pulseBuffer[FILTER_SIZE] = {0};
@@ -209,7 +231,30 @@ void IRAM_ATTR rpm_isr() {
   pulseDelta = interval;
   prevInterval = interval;
   lastPulseTime = now;
-} 
+}
+
+void loadSavedSettings() {
+  // Open the "dyno" namespace in Read/Write mode (false)
+  preferences.begin("dyno", false); 
+
+  // LOAD CALIBRATION
+  // getLong(key, default_value)
+  noWeight = preferences.getLong("noWeight", noWeight); 
+  calibration = preferences.getLong("calibration", calibration);
+  calibrationWeight = preferences.getFloat("calWeight", 20.0f);
+
+  // LOAD SETTINGS
+  finalDriveRatio = preferences.getFloat("finalDrive", 1.0f);
+  magnetCount = preferences.getInt("magnets", 1);
+  globalMaxRpm = preferences.getInt("maxRpm", 7500);
+
+  // Apply the loaded math immediately
+  engineToShaftRatio = primaryReduction * gearRatio * finalDriveRatio;
+  recalculateNoiseFilter(); 
+  
+  // Close for now
+  preferences.end();
+}
 
 void setup() {
   dataMutex = xSemaphoreCreateMutex();
@@ -330,9 +375,9 @@ void setup() {
   // If the sensor is connected and in free air (engine off), it will read High.
   // If disconnected, the Pulldown resistor pulls it to 0.
   delay(100); 
-  int detectionRead = analogRead(afrPin);
+  int detectionRead = analogReadMilliVolts(afrPin);
   
-  if(detectionRead > 3000) {  // CHANGED FROM 300 TO 3000
+  if(detectionRead > 2400) {  // CHANGED FROM 300 TO 3000
     afrFound = true;
     Serial.print("✅ Wideband Detected! Level: ");
     Serial.println(detectionRead);
@@ -342,6 +387,32 @@ void setup() {
     Serial.print("❌ Wideband Missing (Ghost Signal Ignored). Level: ");
     Serial.println(detectionRead);
     if(ui_LabelAFR) lv_obj_add_flag(ui_LabelAFR, LV_OBJ_FLAG_HIDDEN);
+  }
+
+  // --- LOAD SETTINGS FROM FLASH ---
+  loadSavedSettings(); 
+
+  // --- UPDATE UI FIELDS WITH LOADED VALUES ---
+  // We need to overwrite the text boxes so the user sees the saved numbers
+  char buf[32];
+
+  // Update Magnet Field
+  lv_snprintf(buf, sizeof(buf), "%d", magnetCount);
+  if(ui_magnetCountTextArea) lv_textarea_set_text(ui_magnetCountTextArea, buf);
+
+  // Update Final Drive Field
+  lv_snprintf(buf, sizeof(buf), "%.2f", finalDriveRatio);
+  if(ui_finalDriveTextArea) lv_textarea_set_text(ui_finalDriveTextArea, buf);
+
+  // Update Calibration Weight Field
+  lv_snprintf(buf, sizeof(buf), "%.1f", calibrationWeight);
+  if(ui_calWeightTextArea) lv_textarea_set_text(ui_calWeightTextArea, buf);
+
+  // Update Max RPM Slider/Label
+  if(ui_maxRpmSlider) lv_slider_set_value(ui_maxRpmSlider, globalMaxRpm, LV_ANIM_OFF);
+  if(ui_maxRpmLabel) {
+     lv_snprintf(buf, sizeof(buf), "%d RPM", globalMaxRpm);
+     lv_label_set_text(ui_maxRpmLabel, buf);
   }
 
   // 1. Create the Chart immediately
@@ -377,11 +448,19 @@ void setup() {
 //Function to zero out scale
 void calibrateLow(lv_event_t * e) {
 	noWeight = scaleReading;
+  // SAVE
+  preferences.begin("dyno", false);
+  preferences.putLong("noWeight", noWeight);
+  preferences.end();
 }
 
 //Function to calibrate scales top end
 void calibrateHigh(lv_event_t * e) {
 	calibration = scaleReading;
+  // SAVE
+  preferences.begin("dyno", false);
+  preferences.putLong("noWeight", calibration);
+  preferences.end();
 }
 
 //This function is called to start the dyno run
@@ -403,6 +482,7 @@ void resetMax(lv_event_t * e) {
   maxTorqueRpm = 0;
   maxHorsepower = 0;
   maxHorsepowerRpm = 0;
+  lastBinIndex = -1;
 
   // This ensures the UI fields also go to exactly 0.00
   lv_textarea_set_text(ui_freestyleTorqueField, "0.00");
@@ -454,6 +534,11 @@ void slider_set_max_rpm(lv_event_t * e) {
   int val = (int)lv_slider_get_value(slider);
   val = ((val + 250) / 500) * 500; // Snap to 500
   setDynoMaxRpm(val);
+  resetMax(NULL);
+  // SAVE
+  preferences.begin("dyno", false);
+  preferences.putInt("maxRpm", val);
+  preferences.end();
   char buf[16];
   lv_snprintf(buf, sizeof(buf), "%d RPM", val);
   lv_label_set_text(ui_maxRpmLabel, buf);
@@ -486,13 +571,18 @@ void final_drive_update(lv_event_t * e) {
     lv_keyboard_set_textarea(ui_settingsKeyboard, ta);
   }
   else if(code == LV_EVENT_READY || code == LV_EVENT_DEFOCUSED) {
-    const char * txt = lv_textarea_get_text(ta);
-    float val = atof(txt);
-    if(val <= 0.0f) val = 1.0f;
-    finalDriveRatio = val;
-    engineToShaftRatio = primaryReduction * gearRatio * finalDriveRatio;
-    lv_obj_add_flag(ui_settingsKeyboard, LV_OBJ_FLAG_HIDDEN);
-  }
+        const char * txt = lv_textarea_get_text(ta);
+        float val = atof(txt);
+        if(val <= 0.0f) val = 1.0f;
+        finalDriveRatio = val;
+        engineToShaftRatio = primaryReduction * gearRatio * finalDriveRatio;
+        recalculateNoiseFilter(); 
+        // SAVE
+        preferences.begin("dyno", false);
+        preferences.putFloat("finalDrive", finalDriveRatio);
+        preferences.end();
+        lv_obj_add_flag(ui_settingsKeyboard, LV_OBJ_FLAG_HIDDEN);
+    }
 }
 
 // --- CALLBACK: MAGNET COUNT TEXT AREA ---
@@ -509,6 +599,11 @@ void magnet_count_update(lv_event_t * e) {
     int val = atoi(txt);
     if(val < 1) val = 1;
     magnetCount = val;
+    recalculateNoiseFilter();
+    // SAVE
+    preferences.begin("dyno", false);
+    preferences.putInt("magnets", magnetCount);
+    preferences.end();
     lv_obj_add_flag(ui_settingsKeyboard, LV_OBJ_FLAG_HIDDEN);
   }
 }
@@ -527,6 +622,9 @@ void cal_weight_update(lv_event_t * e) {
       float val = atof(txt);
       if(val <= 0.0f) val = 1.0f;
       calibrationWeight = val;
+      preferences.begin("dyno", false);
+      preferences.putFloat("calWeight", calibrationWeight);
+      preferences.end();
       lv_obj_add_flag(ui_calibrationKeyboard, LV_OBJ_FLAG_HIDDEN);
     }
 }
@@ -567,104 +665,78 @@ void drawChart(lv_event_t * e) {
     serialLoggingActive = false;
   }
 
-  // Static variables to track state
+  // Static variables for labels
   static lv_obj_t * ui_EgtPeakLabel = NULL;
   static lv_obj_t * ui_HpPeakLabel = NULL;
   static lv_obj_t * ui_TorquePeakLabel = NULL;
-  static lv_obj_t * ui_AfrPeakLabel = NULL; // Static variable for AFR label
-  static bool chartSeriesInitialized = false; // Flag to force a one-time clean up
+  static lv_obj_t * ui_AfrPeakLabel = NULL; 
 
-  // 2. CHECK IF CHART EXISTS
+  // 2. CHECK IF CHART EXISTS OR CREATE IT
   if(ui_Chart == NULL) {
     ui_Chart = lv_chart_create(ui_ChartScreen);
     
-    // RESTORED ORIGINAL POSITIONING to stop interference
+    // Positioning & Styling
     lv_obj_set_width(ui_Chart, 700);
     lv_obj_set_height(ui_Chart, 325);
     lv_obj_set_x(ui_Chart, 0);
-    lv_obj_set_y(ui_Chart, -60); // Restored the -60 offset
+    lv_obj_set_y(ui_Chart, -60);
     lv_obj_set_align(ui_Chart, LV_ALIGN_CENTER);
-    
     lv_chart_set_type(ui_Chart, LV_CHART_TYPE_LINE);
     
-    // Apply default styles
     lv_obj_set_style_bg_img_src(ui_Chart, &ui_img_carbon_fiber3_png, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_color(ui_Chart, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_Chart, &ui_font_tomorrow18, LV_PART_TICKS | LV_STATE_DEFAULT);
     
-    // Mark series as "dirty" so we rebuild them correctly below
-    chartSeriesInitialized = false; 
+    // --- THE FIX: EVENT HANDLER ADDED ONCE HERE ---
+    lv_obj_add_event_cb(ui_Chart, chart_draw_event_cb, LV_EVENT_DRAW_PART_BEGIN, NULL);
+    // ----------------------------------------------
+
+    // Reset global pointers since we just made a new chart
+    global_ser_torque = NULL;
+    global_ser_hp = NULL;
+    global_ser_afr = NULL;
+    global_ser_egt = NULL;
   }
 
-  // Ensure styling
+  // Ensure styling properties (Safe to run multiple times, these are just settings)
   lv_chart_set_div_line_count(ui_Chart, 5, 10); 
   lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_PRIMARY_X, 10, 5, 10, 1, true, 50); 
   lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 5, 2, true, 50);
   lv_chart_set_axis_tick(ui_Chart, LV_CHART_AXIS_SECONDARY_Y, 10, 5, 5, 2, true, 25);  
-  lv_obj_set_style_size(ui_Chart, 0, LV_PART_INDICATOR); // Hide dots
+  lv_obj_set_style_size(ui_Chart, 0, LV_PART_INDICATOR); 
   
-  // Re-add event callback 
-  lv_obj_add_event_cb(ui_Chart, chart_draw_event_cb, LV_EVENT_DRAW_PART_BEGIN, NULL);
-
   // ---------------------------------------------------------
-  // 3. HARD RESET SERIES (The Fix: Reverse Add Order)
+  // 3. SERIES MANAGEMENT
   // ---------------------------------------------------------
-  if (!chartSeriesInitialized) {
-     // 4. EGT (Yellow) - Bottom Layer
+  // If we just created the chart (or if it was empty), these will be NULL.
+  // We check the pointers directly.
+  if (global_ser_torque == NULL) {
+     
+     // 1. EGT (Yellow)
     if(egtFound) {
-      lv_chart_add_series(ui_Chart, lv_color_hex(0xFFD700), LV_CHART_AXIS_SECONDARY_Y);
+      global_ser_egt = lv_chart_add_series(ui_Chart, lv_color_hex(0xFFD700), LV_CHART_AXIS_SECONDARY_Y);
     }
-    // 3. AFR (White) - Third Layer -> CHECK afrFound HERE
+    // 2. AFR (White)
     if(afrFound) {
-      lv_chart_add_series(ui_Chart, lv_color_hex(0xFFFFFF), LV_CHART_AXIS_SECONDARY_Y);
+      global_ser_afr = lv_chart_add_series(ui_Chart, lv_color_hex(0xFFFFFF), LV_CHART_AXIS_SECONDARY_Y);
     }
-    // 2. HP (Blue) - Second Layer
-    lv_chart_add_series(ui_Chart, lv_color_hex(0x2D00FF), LV_CHART_AXIS_PRIMARY_Y);
-    // 1. Torque (Red) - Top Layer
-    lv_chart_add_series(ui_Chart, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y);
-      
-    chartSeriesInitialized = true;
+    // 3. HP (Blue)
+    global_ser_hp = lv_chart_add_series(ui_Chart, lv_color_hex(0x2D00FF), LV_CHART_AXIS_PRIMARY_Y);
+    
+    // 4. Torque (Red)
+    global_ser_torque = lv_chart_add_series(ui_Chart, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y);
   }
 
   // ---------------------------------------------------------
-  // FETCH POINTERS
+  // 4. SCALING & DATA POPULATION
   // ---------------------------------------------------------
-  lv_chart_series_t * ser_torque = lv_chart_get_series_next(ui_Chart, NULL);
-  lv_chart_series_t * ser_hp     = lv_chart_get_series_next(ui_Chart, ser_torque);
-  
-  // LOGIC TO GET AFR POINTER
-  lv_chart_series_t * ser_afr = NULL;
-  if(afrFound) {
-      ser_afr = lv_chart_get_series_next(ui_Chart, ser_hp);
-  }
-
-  // LOGIC TO GET EGT POINTER
-  lv_chart_series_t * ser_egt = NULL;
-  if (egtFound) {
-      // If AFR exists, EGT is after AFR. If not, EGT is after HP.
-      if(ser_afr) {
-        ser_egt = lv_chart_get_series_next(ui_Chart, ser_afr);
-      } else {
-        ser_egt = lv_chart_get_series_next(ui_Chart, ser_hp);
-      }
-  }
-
-  // ---------------------------------------------------------
-  // 5. SCALING & DATA POPULATION
-  // ---------------------------------------------------------
-
   float peakVal = (maxTorque > maxHorsepower) ? maxTorque : maxHorsepower;
   int autoRangeY = (int)(peakVal * 100.0f);
-
-  // Apply headroom (10%)
-  autoRangeY = (int)(autoRangeY * 1.10f);
+  autoRangeY = (int)(autoRangeY * 1.10f); // 10% Headroom
   if(autoRangeY < 1000) autoRangeY = 1000; 
 
-  // Primary Axis (Torque/HP): Auto-scaled
   lv_chart_set_range(ui_Chart, LV_CHART_AXIS_PRIMARY_Y, 0, autoRangeY);
-  
-  // Secondary Axis (AFR/EGT): Fixed Range (5.00 - 20.00 x 100)
-  lv_chart_set_range(ui_Chart, LV_CHART_AXIS_SECONDARY_Y, 500, 2000);
+  lv_chart_set_range(ui_Chart, LV_CHART_AXIS_SECONDARY_Y, 500, 2000); 
 
   // X-Axis Trimming
   int lastActiveBin = MAX_BINS - 1;
@@ -678,66 +750,39 @@ void drawChart(lv_event_t * e) {
   activeGraphBinCount = lastActiveBin + 1;
   lv_chart_set_point_count(ui_Chart, activeGraphBinCount);
 
-  // Fill Data & Track Peaks
-  int maxEgtVal = -1;
-  int maxEgtIdx = -1;
-  int maxTorqueValLocal = -1;
-  int maxTorqueIdx = -1;
-  int maxHpValLocal = -1;
-  int maxHpIdx = -1;
-  int maxAfrVal = -1; 
-  int maxAfrIdx = -1;
+  // Peak Tracking Variables
+  int maxEgtVal = -1, maxEgtIdx = -1;
+  int maxTorqueValLocal = -1, maxTorqueIdx = -1;
+  int maxHpValLocal = -1, maxHpIdx = -1;
+  int maxAfrVal = -1, maxAfrIdx = -1;
 
   for(int i = 0; i < activeGraphBinCount; i++) {
-
-    // ONLY DRAW IF FOUND
-    if(afrFound && ser_afr) {
-        ser_afr->y_points[i] = a_bins[i];
-        if (a_bins[i] > maxAfrVal) {
-            maxAfrVal = a_bins[i];
-            maxAfrIdx = i;
-        }
+    if(global_ser_afr) {
+        global_ser_afr->y_points[i] = a_bins[i];
+        if (a_bins[i] > maxAfrVal) { maxAfrVal = a_bins[i]; maxAfrIdx = i; }
     }
-    if(ser_torque) {
-        ser_torque->y_points[i] = t_bins[i];
-        if (t_bins[i] > maxTorqueValLocal) {
-            maxTorqueValLocal = t_bins[i];
-            maxTorqueIdx = i;
-        }
+    if(global_ser_torque) {
+        global_ser_torque->y_points[i] = t_bins[i];
+        if (t_bins[i] > maxTorqueValLocal) { maxTorqueValLocal = t_bins[i]; maxTorqueIdx = i; }
     }
-    if(ser_hp) {
-        ser_hp->y_points[i] = h_bins[i];
-        if (h_bins[i] > maxHpValLocal) {
-            maxHpValLocal = h_bins[i];
-            maxHpIdx = i;
-        }
+    if(global_ser_hp) {
+        global_ser_hp->y_points[i] = h_bins[i];
+        if (h_bins[i] > maxHpValLocal) { maxHpValLocal = h_bins[i]; maxHpIdx = i; }
     }
-
-    if(ser_afr) {
-        ser_afr->y_points[i] = a_bins[i];
-        if (a_bins[i] > maxAfrVal) {
-            maxAfrVal = a_bins[i];
-            maxAfrIdx = i;
-        }
-    }
-    
-    if(egtFound && ser_egt != NULL) {
-      ser_egt->y_points[i] = e_bins[i];
-      if (e_bins[i] > maxEgtVal) {
-        maxEgtVal = e_bins[i];
-        maxEgtIdx = i;
-      }
+    if(global_ser_egt) {
+      global_ser_egt->y_points[i] = e_bins[i];
+      if (e_bins[i] > maxEgtVal) { maxEgtVal = e_bins[i]; maxEgtIdx = i; }
     }
   }
 
   lv_chart_refresh(ui_Chart); 
 
   // ---------------------------------------------------------
-  // 6. PEAK LABELS (EGT, HP, TORQUE)
+  // 5. PEAK LABELS
   // ---------------------------------------------------------
   
-  // AFR LABEL (White)
-  if(afrFound && ser_afr != NULL && maxAfrIdx != -1 && maxAfrVal > 10) {
+  // AFR
+  if(afrFound && global_ser_afr != NULL && maxAfrIdx != -1 && maxAfrVal > 10) {
     if(ui_AfrPeakLabel == NULL) {
       ui_AfrPeakLabel = lv_label_create(ui_ChartScreen); 
       lv_obj_set_style_text_color(ui_AfrPeakLabel, lv_color_hex(0xFFFFFF), LV_PART_MAIN); 
@@ -745,25 +790,19 @@ void drawChart(lv_event_t * e) {
     }
     lv_obj_clear_flag(ui_AfrPeakLabel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(ui_AfrPeakLabel); 
-
-    // Format: 1470 -> 14.7
     lv_label_set_text_fmt(ui_AfrPeakLabel, "%d.%d:1", maxAfrVal/100, (maxAfrVal%100)/10);
-
+    
     lv_point_t p;
-    lv_chart_get_point_pos_by_id(ui_Chart, ser_afr, maxAfrIdx, &p);
-
-    int finalX = p.x - 50; 
-    int finalY = p.y - 40;
-    if (finalX < 0) finalX = 5; 
-    if (finalY < 0) finalY = 5; 
-
+    lv_chart_get_point_pos_by_id(ui_Chart, global_ser_afr, maxAfrIdx, &p);
+    int finalX = p.x - 50; if (finalX < 5) finalX = 5;
+    int finalY = p.y - 40; if (finalY < 5) finalY = 5;
     lv_obj_align_to(ui_AfrPeakLabel, ui_Chart, LV_ALIGN_TOP_LEFT, finalX, finalY);
   } else {
     if(ui_AfrPeakLabel) lv_obj_add_flag(ui_AfrPeakLabel, LV_OBJ_FLAG_HIDDEN);
   }
 
-  // EGT LABEL (Yellow)
-  if(egtFound && ser_egt != NULL && maxEgtIdx != -1) {
+  // EGT
+  if(egtFound && global_ser_egt != NULL && maxEgtIdx != -1) {
     if(ui_EgtPeakLabel == NULL) {
       ui_EgtPeakLabel = lv_label_create(ui_ChartScreen); 
       lv_obj_set_style_text_color(ui_EgtPeakLabel, lv_color_hex(0xFFD700), LV_PART_MAIN);
@@ -771,24 +810,19 @@ void drawChart(lv_event_t * e) {
     }
     lv_obj_clear_flag(ui_EgtPeakLabel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(ui_EgtPeakLabel); 
-
     lv_label_set_text_fmt(ui_EgtPeakLabel, "%d F", maxEgtVal);
-
+    
     lv_point_t p;
-    lv_chart_get_point_pos_by_id(ui_Chart, ser_egt, maxEgtIdx, &p);
-
-    int finalX = p.x - 50; 
-    int finalY = p.y - 40;
-    if (finalX < 0) finalX = 5; 
-    if (finalY < 0) finalY = 5; 
-
+    lv_chart_get_point_pos_by_id(ui_Chart, global_ser_egt, maxEgtIdx, &p);
+    int finalX = p.x - 50; if (finalX < 5) finalX = 5;
+    int finalY = p.y - 40; if (finalY < 5) finalY = 5;
     lv_obj_align_to(ui_EgtPeakLabel, ui_Chart, LV_ALIGN_TOP_LEFT, finalX, finalY);
   } else {
     if(ui_EgtPeakLabel) lv_obj_add_flag(ui_EgtPeakLabel, LV_OBJ_FLAG_HIDDEN);
   }
 
-  // HP LABEL (Blue)
-  if(ser_hp != NULL && maxHpIdx != -1 && maxHpValLocal > 10) {
+  // HP
+  if(global_ser_hp != NULL && maxHpIdx != -1 && maxHpValLocal > 10) {
     if(ui_HpPeakLabel == NULL) {
       ui_HpPeakLabel = lv_label_create(ui_ChartScreen); 
       lv_obj_set_style_text_color(ui_HpPeakLabel, lv_color_hex(0x2D00FF), LV_PART_MAIN); 
@@ -796,44 +830,32 @@ void drawChart(lv_event_t * e) {
     }
     lv_obj_clear_flag(ui_HpPeakLabel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(ui_HpPeakLabel); 
-
-    // Format as decimal: 3450 -> 34.50
     lv_label_set_text_fmt(ui_HpPeakLabel, "%d.%02dHP", maxHpValLocal/100, maxHpValLocal%100);
-
+    
     lv_point_t p;
-    lv_chart_get_point_pos_by_id(ui_Chart, ser_hp, maxHpIdx, &p);
-
-    int finalX = p.x - 50; 
-    int finalY = p.y - 40;
-    if (finalX < 0) finalX = 5; 
-    if (finalY < 0) finalY = 5; 
-
+    lv_chart_get_point_pos_by_id(ui_Chart, global_ser_hp, maxHpIdx, &p);
+    int finalX = p.x - 50; if (finalX < 5) finalX = 5;
+    int finalY = p.y - 40; if (finalY < 5) finalY = 5;
     lv_obj_align_to(ui_HpPeakLabel, ui_Chart, LV_ALIGN_TOP_LEFT, finalX, finalY);
   } else {
     if(ui_HpPeakLabel) lv_obj_add_flag(ui_HpPeakLabel, LV_OBJ_FLAG_HIDDEN);
   }
 
-  // TORQUE LABEL (Red)
-  if(ser_torque != NULL && maxTorqueIdx != -1 && maxTorqueValLocal > 10) {
+  // TORQUE
+  if(global_ser_torque != NULL && maxTorqueIdx != -1 && maxTorqueValLocal > 10) {
     if(ui_TorquePeakLabel == NULL) {
       ui_TorquePeakLabel = lv_label_create(ui_ChartScreen); 
       lv_obj_set_style_text_color(ui_TorquePeakLabel, lv_color_hex(0xFF0000), LV_PART_MAIN); 
-       lv_obj_set_style_text_font(ui_TorquePeakLabel, &ui_font_tomorrow, LV_PART_MAIN); 
+      lv_obj_set_style_text_font(ui_TorquePeakLabel, &ui_font_tomorrow, LV_PART_MAIN); 
     }
     lv_obj_clear_flag(ui_TorquePeakLabel, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(ui_TorquePeakLabel); 
-
-    // Format as decimal: 3450 -> 34.50
     lv_label_set_text_fmt(ui_TorquePeakLabel, "%d.%02dft/lbs", maxTorqueValLocal/100, maxTorqueValLocal%100);
-
+    
     lv_point_t p;
-    lv_chart_get_point_pos_by_id(ui_Chart, ser_torque, maxTorqueIdx, &p);
-
-    int finalX = p.x - 50; 
-    int finalY = p.y - 40;
-    if (finalX < 0) finalX = 5; 
-    if (finalY < 0) finalY = 5; 
-
+    lv_chart_get_point_pos_by_id(ui_Chart, global_ser_torque, maxTorqueIdx, &p);
+    int finalX = p.x - 50; if (finalX < 5) finalX = 5;
+    int finalY = p.y - 40; if (finalY < 5) finalY = 5;
     lv_obj_align_to(ui_TorquePeakLabel, ui_Chart, LV_ALIGN_TOP_LEFT, finalX, finalY);
   } else {
     if(ui_TorquePeakLabel) lv_obj_add_flag(ui_TorquePeakLabel, LV_OBJ_FLAG_HIDDEN);
@@ -929,7 +951,7 @@ void loop() {
   interrupts();
 
   // 2. Timeout Check (Engine stopped)
-  if (micros() - lastTime > RPM_TIMEOUT) {
+  if (micros() - lastTime > currentRpmTimeout) {
     rpm = 0;
     horsepower = 0;
     rpmNeedlePos = 0;
@@ -997,12 +1019,17 @@ void loop() {
     }
     // ONLY READ IF FOUND
     if (afrFound) {
-        int rawAfr = analogRead(afrPin);
+        // 1. Get the calibrated voltage directly in Millivolts (e.g., 1500 mV)
+        uint32_t pinMilliVolts = analogReadMilliVolts(afrPin);
         
-        // Voltage Math
-        float pinVoltage = (rawAfr / 4095.0) * 3.3;
+        // 2. Convert to Volts (1.5V)
+        float pinVoltage = pinMilliVolts / 1000.0;
+        
+        // 3. Undo the Voltage Divider (Same as before)
+        // (pinVoltage / 0.6 scales it back up to the real 0-5V sensor output)
         float widebandVoltage = pinVoltage / 0.6; 
         
+        // 4. Convert to AFR (Standard 10-20 scale)
         snapAfr = (widebandVoltage * 2.0) + 10.0;
     }
 
@@ -1148,7 +1175,7 @@ void SensorTaskLoop(void * pvParameters) {
         float shaftTorque = ((float)(scaleReading - noWeight) / rawRange) * calibrationWeight;
         // 2. Correct back to ENGINE Torque based on gearing
         if (xSemaphoreTake(dataMutex, portMAX_DELAY)) {
-          torque = shaftTorque * engineToShaftRatio;
+          torque = shaftTorque / engineToShaftRatio;
           xSemaphoreGive(dataMutex);
         }
       }  
