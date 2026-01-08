@@ -245,6 +245,7 @@ void loadSavedSettings() {
   finalDriveRatio = preferences.getFloat("finalDrive", 1.0f);
   magnetCount = preferences.getInt("magnets", 1);
   globalMaxRpm = preferences.getInt("maxRpm", 7500);
+  calibrationWeight = preferences.getFloat("calWeight", 20.0f);
 
   // 2. CALCULATE THE SPAN (The "Slope" of your sensor)
   // This is the only thing that actually matters physically.
@@ -1185,16 +1186,6 @@ void loop() {
   } //End runMode
 
   lv_timer_handler(); //This line is responsible for the UI doing its work
-
-  // Inside loop(), near the bottom
-static uint32_t printTimer = 0;
-if (millis() - printTimer > 500) {
-    printTimer = millis();
-    Serial.print("RAW: "); Serial.print(scaleReading);
-    Serial.print(" | ZERO: "); Serial.print(noWeight);
-    Serial.print(" | CAL_HIGH: "); Serial.print(calibration);
-    Serial.print(" | SPAN: "); Serial.println(calibration - noWeight);
-}
 }
 
 // Task handle for Core 0. This runs the HX711 reading tasks on the second core of the esp32.
