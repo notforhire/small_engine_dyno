@@ -33,7 +33,7 @@ void ui_settingsScreen_screen_init(void)
     lv_obj_set_x(ui_settingsHomeButton, 320);
     lv_obj_set_y(ui_settingsHomeButton, 195);
     lv_obj_set_align(ui_settingsHomeButton, LV_ALIGN_CENTER);
-    lv_obj_add_flag(ui_settingsHomeButton, LV_OBJ_FLAG_HIDDEN | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(ui_settingsHomeButton, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_blend_mode(ui_settingsHomeButton, LV_BLEND_MODE_ADDITIVE, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_settingsHomeButtonLabel = lv_label_create(ui_settingsHomeButton);
@@ -48,7 +48,7 @@ void ui_settingsScreen_screen_init(void)
     lv_obj_set_x(ui_settingsChartButton, -320);
     lv_obj_set_y(ui_settingsChartButton, 195);
     lv_obj_set_align(ui_settingsChartButton, LV_ALIGN_CENTER);
-    lv_obj_add_flag(ui_settingsChartButton, LV_OBJ_FLAG_HIDDEN | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(ui_settingsChartButton, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_blend_mode(ui_settingsChartButton, LV_BLEND_MODE_ADDITIVE, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_opa(ui_settingsChartButton, 220, LV_PART_MAIN | LV_STATE_DEFAULT);
 
@@ -70,7 +70,7 @@ void ui_settingsScreen_screen_init(void)
 
     ui_continueButtonLabel = lv_label_create(ui_continueButton);
     lv_obj_set_align(ui_continueButtonLabel, LV_ALIGN_CENTER);
-    lv_label_set_text(ui_continueButtonLabel, "Continue");
+    lv_label_set_text(ui_continueButtonLabel, "Calibrate");
     lv_obj_set_style_text_font(ui_continueButtonLabel, &ui_font_tomorrow, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_maxRpmTitle = lv_label_create(ui_settingsScreen);

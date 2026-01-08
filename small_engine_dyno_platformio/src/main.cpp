@@ -237,16 +237,40 @@ void loadSavedSettings() {
   // Open the "dyno" namespace in Read/Write mode (false)
   preferences.begin("dyno", false); 
 
-  // LOAD CALIBRATION
-  // getLong(key, default_value)
-  noWeight = preferences.getLong("noWeight", noWeight); 
-  calibration = preferences.getLong("calibration", calibration);
-  calibrationWeight = preferences.getFloat("calWeight", 20.0f);
+  // 1. Load the RAW values from the last calibration
+  long savedNoWeight = preferences.getLong("noWeight", 0); 
+  long savedCalibration = preferences.getLong("calibration", 0);
 
-  // LOAD SETTINGS
+  // 2. LOAD SETTINGS
   finalDriveRatio = preferences.getFloat("finalDrive", 1.0f);
   magnetCount = preferences.getInt("magnets", 1);
   globalMaxRpm = preferences.getInt("maxRpm", 7500);
+
+  // 2. CALCULATE THE SPAN (The "Slope" of your sensor)
+  // This is the only thing that actually matters physically.
+  long calibrationSpan = savedCalibration - savedNoWeight;
+  
+  preferences.end();
+
+  // 3. AUTO-TARE (The Fix)
+  // Check if scale is ready (give it 500ms)
+  if (scale.wait_ready_timeout(500)) {
+      long currentReading = scale.read();
+      
+      // Update the Global "Zero" to RIGHT NOW
+      noWeight = currentReading; 
+      
+      // Shift the "Calibration High Point" to match the new Zero
+      // (New Zero + Old Span = New High Point)
+      calibration = noWeight + calibrationSpan;
+      
+      Serial.println("✅ Auto-Tare Complete. Calibration Span Preserved.");
+  } else {
+      Serial.println("⚠️ Scale Missing. Using Saved Values (May drift).");
+      // Fallback: Use the saved values directly if scale is unplugged
+      noWeight = savedNoWeight;
+      calibration = savedCalibration;
+  }
 
   // Apply the loaded math immediately
   engineToShaftRatio = primaryReduction * gearRatio * finalDriveRatio;
@@ -268,6 +292,7 @@ void setup() {
 
   Serial.begin( 115200 ); //Prepare for possible serial debug
   scale.begin(DOUT, CLK); //Initialize scale
+
   gfx->begin(); //Initialize gfx
   lv_init(); //Initialize lvgl
   
@@ -340,18 +365,6 @@ void setup() {
   if(ui_calWeightTextArea) lv_textarea_set_text(ui_calWeightTextArea, "20.0");
 
   engineToShaftRatio = primaryReduction * gearRatio * finalDriveRatio;
-
-  
-
-  // Create the sensor task on Core 0
-  xTaskCreatePinnedToCore(
-    SensorTaskLoop,   /* Task function */
-    "SensorTask",     /* Name of task */
-    10000,            /* Stack size in words */
-    NULL,             /* Task input parameter */
-    1,                /* Priority of the task */
-    &SensorTask,      /* Task handle */
-    0);               /* Core 0 */
     
   // -------------------------------------------------------------------------
   // --- FINAL EGT SENSOR SETUP (Moved here to be safe) ---
@@ -405,22 +418,22 @@ void setup() {
   char buf[32];
 
   // Update Magnet Field
-  lv_snprintf(buf, sizeof(buf), "%d", magnetCount);
+  snprintf(buf, sizeof(buf), "%d", magnetCount);
   if(ui_magnetCountTextArea) lv_textarea_set_text(ui_magnetCountTextArea, buf);
 
   // Update Final Drive Field
-  lv_snprintf(buf, sizeof(buf), "%.2f", finalDriveRatio);
+  snprintf(buf, sizeof(buf), "%.2f", finalDriveRatio);
   if(ui_finalDriveTextArea) lv_textarea_set_text(ui_finalDriveTextArea, buf);
 
   // Update Calibration Weight Field
-  lv_snprintf(buf, sizeof(buf), "%.1f", calibrationWeight);
+  snprintf(buf, sizeof(buf), "%.1f", calibrationWeight);
   if(ui_calWeightTextArea) lv_textarea_set_text(ui_calWeightTextArea, buf);
 
   // Update Max RPM Slider/Label
   if(ui_maxRpmSlider) lv_slider_set_value(ui_maxRpmSlider, globalMaxRpm, LV_ANIM_OFF);
   if(ui_maxRpmLabel) {
-     lv_snprintf(buf, sizeof(buf), "%d RPM", globalMaxRpm);
-     lv_label_set_text(ui_maxRpmLabel, buf);
+    snprintf(buf, sizeof(buf), "%d RPM", globalMaxRpm);
+    lv_label_set_text(ui_maxRpmLabel, buf);
   }
 
   // 1. Create the Chart immediately
@@ -446,11 +459,26 @@ void setup() {
   
   // Only add EGT if hardware was found
   if(egtFound) {
-      global_ser_egt = lv_chart_add_series(ui_Chart, lv_color_hex(0xFFD700), LV_CHART_AXIS_SECONDARY_Y);
+    global_ser_egt = lv_chart_add_series(ui_Chart, lv_color_hex(0xFFD700), LV_CHART_AXIS_SECONDARY_Y);
   }
   
   // 4. Add the formatted tick callback
   lv_obj_add_event_cb(ui_Chart, chart_draw_event_cb, LV_EVENT_DRAW_PART_BEGIN, NULL);
+
+  if (calibration != 0) {
+    Serial.println("Skipping Setup - Going to Gauges");
+    lv_scr_load(ui_homeScreen);
+  }
+
+  // Create the sensor task on Core 0
+  xTaskCreatePinnedToCore(
+    SensorTaskLoop,   /* Task function */
+    "SensorTask",     /* Name of task */
+    10000,            /* Stack size in words */
+    NULL,             /* Task input parameter */
+    1,                /* Priority of the task */
+    &SensorTask,      /* Task handle */
+    0);               /* Core 0 */
 }
 
 //Function to zero out scale
@@ -467,7 +495,7 @@ void calibrateHigh(lv_event_t * e) {
 	calibration = scaleReading;
   // SAVE
   preferences.begin("dyno", false);
-  preferences.putLong("noWeight", calibration);
+  preferences.putLong("calibration", calibration);
   preferences.end();
 }
 
@@ -548,7 +576,7 @@ void slider_set_max_rpm(lv_event_t * e) {
   preferences.putInt("maxRpm", val);
   preferences.end();
   char buf[16];
-  lv_snprintf(buf, sizeof(buf), "%d RPM", val);
+  snprintf(buf, sizeof(buf), "%d RPM", val);
   lv_label_set_text(ui_maxRpmLabel, buf);
 }
 
@@ -661,7 +689,7 @@ static void chart_draw_event_cb(lv_event_t * e) {
     int whole = val / 10;                 
     int decimal = val % 10;               
       
-    lv_snprintf(dsc->text, dsc->text_length, "%d.%dk", whole, decimal);
+    snprintf(dsc->text, dsc->text_length, "%d.%dk", whole, decimal);
   }
 }
 
@@ -729,10 +757,10 @@ void drawChart(lv_event_t * e) {
       global_ser_afr = lv_chart_add_series(ui_Chart, lv_color_hex(0xFFFFFF), LV_CHART_AXIS_SECONDARY_Y);
     }
     // 3. HP (Blue)
-    global_ser_hp = lv_chart_add_series(ui_Chart, lv_color_hex(0x2D00FF), LV_CHART_AXIS_PRIMARY_Y);
+    global_ser_hp = lv_chart_add_series(ui_Chart, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y);
     
     // 4. Torque (Red)
-    global_ser_torque = lv_chart_add_series(ui_Chart, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y);
+    global_ser_torque = lv_chart_add_series(ui_Chart, lv_color_hex(0x2D00FF), LV_CHART_AXIS_PRIMARY_Y);
   }
 
   // ---------------------------------------------------------
@@ -833,7 +861,7 @@ void drawChart(lv_event_t * e) {
   if(global_ser_hp != NULL && maxHpIdx != -1 && maxHpValLocal > 10) {
     if(ui_HpPeakLabel == NULL) {
       ui_HpPeakLabel = lv_label_create(ui_ChartScreen); 
-      lv_obj_set_style_text_color(ui_HpPeakLabel, lv_color_hex(0x2D00FF), LV_PART_MAIN); 
+      lv_obj_set_style_text_color(ui_HpPeakLabel, lv_color_hex(0xFF0000), LV_PART_MAIN); 
       lv_obj_set_style_text_font(ui_HpPeakLabel, &ui_font_tomorrow, LV_PART_MAIN); 
     }
     lv_obj_clear_flag(ui_HpPeakLabel, LV_OBJ_FLAG_HIDDEN);
@@ -853,7 +881,7 @@ void drawChart(lv_event_t * e) {
   if(global_ser_torque != NULL && maxTorqueIdx != -1 && maxTorqueValLocal > 10) {
     if(ui_TorquePeakLabel == NULL) {
       ui_TorquePeakLabel = lv_label_create(ui_ChartScreen); 
-      lv_obj_set_style_text_color(ui_TorquePeakLabel, lv_color_hex(0xFF0000), LV_PART_MAIN); 
+      lv_obj_set_style_text_color(ui_TorquePeakLabel, lv_color_hex(0x2D00FF), LV_PART_MAIN); 
       lv_obj_set_style_text_font(ui_TorquePeakLabel, &ui_font_tomorrow, LV_PART_MAIN); 
     }
     lv_obj_clear_flag(ui_TorquePeakLabel, LV_OBJ_FLAG_HIDDEN);
@@ -1157,6 +1185,16 @@ void loop() {
   } //End runMode
 
   lv_timer_handler(); //This line is responsible for the UI doing its work
+
+  // Inside loop(), near the bottom
+static uint32_t printTimer = 0;
+if (millis() - printTimer > 500) {
+    printTimer = millis();
+    Serial.print("RAW: "); Serial.print(scaleReading);
+    Serial.print(" | ZERO: "); Serial.print(noWeight);
+    Serial.print(" | CAL_HIGH: "); Serial.print(calibration);
+    Serial.print(" | SPAN: "); Serial.println(calibration - noWeight);
+}
 }
 
 // Task handle for Core 0. This runs the HX711 reading tasks on the second core of the esp32.
@@ -1190,4 +1228,8 @@ void SensorTaskLoop(void * pvParameters) {
     }
     vTaskDelay(pdMS_TO_TICKS(1)); 
   }
+}
+
+extern "C" long get_calibration_value() {
+    return calibration;
 }

@@ -12,7 +12,7 @@ void ui_calibrationScreen_screen_init(void)
     lv_obj_set_x(ui_calibrationPageHomeButton, 320);
     lv_obj_set_y(ui_calibrationPageHomeButton, 195);
     lv_obj_set_align(ui_calibrationPageHomeButton, LV_ALIGN_CENTER);
-    lv_obj_add_flag(ui_calibrationPageHomeButton, LV_OBJ_FLAG_HIDDEN | LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(ui_calibrationPageHomeButton, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_blend_mode(ui_calibrationPageHomeButton, LV_BLEND_MODE_ADDITIVE, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_opa(ui_calibrationPageHomeButton, 220, LV_PART_MAIN | LV_STATE_DEFAULT);
 

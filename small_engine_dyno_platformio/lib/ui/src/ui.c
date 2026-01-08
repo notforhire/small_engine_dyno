@@ -241,16 +241,8 @@ void ui_event_calibrateButtonGreen(lv_event_t * e)
     lv_event_code_t event_code = lv_event_get_code(e);
     if(event_code == LV_EVENT_CLICKED) {
         calibrateHigh(e); // Main logic
-        
-        // UNLOCK THE MACHINE
-        // Reveal Home buttons on Settings and Calibration screens
-        lv_obj_clear_flag(ui_calibrationPageHomeButton, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(ui_settingsHomeButton, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(ui_settingsChartButton, LV_OBJ_FLAG_HIDDEN);
-        
         // Go to Home Screen
         lv_scr_load_anim(ui_homeScreen, LV_SCR_LOAD_ANIM_FADE_ON, 500, 0, false);
-        
         resetMax(e);
     }
 }
