@@ -1,0 +1,92 @@
+# Pit Row Dyno - Wiring Manifest (BASE MODEL)
+# Hardware Revision: 1.1 (Divider Update)
+# Controller: Sunton ESP32-8048S070
+# Scope: RPM & Load Cell ONLY.
+
+## 1. Master Pinout Overview
+| ESP32 Pin | Function | Header | Connects To | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **GPIO 11** | **Analog In** | **P2/P3** | **PULLDOWN ONLY** | **3.3kΩ Resistor to GND** (Keeps signal 0V) |
+| **GPIO 12** | **Digital In** | **P2** | **RPM Sensor** | **Divider: 2.2kΩ Series / 4.7kΩ Ground** |
+| **GPIO 17** | **SCK** (Clock) | **P4** | **Load Cell Amp** | **MUST USE HEADER P4** (Avoids UART Conflict) |
+| **GPIO 18** | **DT** (Data) | **P4** | **Load Cell Amp** | **MUST USE HEADER P4** (Avoids UART Conflict) |
+
+## 2. Sensor Connection Details
+
+### A. Load Cell (Force Measurement)
+* **Sensor:** HX711 Amplifier Module
+* **Location:** HEADER P4 (Do NOT use P3)
+* **Wiring:**
+    * **HX711 SCK** --> **Pin 17** (Header P4)
+    * **HX711 DT** --> **Pin 18** (Header P4)
+    * **VCC** --> **5V**
+    * **GND** --> **GND**
+
+### B. RPM / Hall Effect Sensor (Voltage Divider)
+* **Sensor:** NJK-5002A (PNP Type - 5V Signal)
+* **Location:** HEADER P2
+* **Components:**
+    * **R1 (Inline):** 2.2kΩ Resistor
+    * **R2 (Pulldown):** 4.7kΩ Resistor
+* **Wiring Path (The "T" Junction):**
+    1. **Sensor Black Wire (Signal)** --> **R1 (2.2kΩ)** --> **Pin 12**.
+    2. **Pin 12** --> **R2 (4.7kΩ)** --> **GND**.
+
+### C. AFR "Dummy" Termination
+* **Wiring:** Solder a **3.3kΩ Resistor** between **Pin 11** and **GND**.
+
+mermaid
+
+---
+config:
+  look: handDrawn
+  layout: elk
+---
+flowchart TB
+ subgraph Board["Sunton ESP32-8048S070"]
+        direction TB
+        P4_Header["Header P4 (Load Cell)"]
+        P2_Header["Header P2 (RPM)"]
+        P11_Pad["Pin 11 (Analog)"]
+        GND_Pad["Common Ground"]
+        VCC_5V["5V Rail"]
+  end
+ subgraph SensorLC["Load Cell (HX711)"]
+        LC_SCK["SCK (Clock)"]
+        LC_DT["DT (Data)"]
+        LC_VCC["VCC"]
+        LC_GND["GND"]
+  end
+ subgraph SensorRPM["RPM Sensor (PNP Hall)"]
+        RPM_Sig["Signal (Black - 5V)"]
+        RPM_VCC["VCC (Brown)"]
+        RPM_GND["GND (Blue)"]
+  end
+ subgraph RPM_Divider["RPM Voltage Divider"]
+        R_RPM1["R_Series: 2.2kΩ"]
+        R_RPM2["R_Ground: 4.7kΩ"]
+  end
+ subgraph Silencer["Software Silencer"]
+        Resistor_3k3["3.3kΩ Pulldown"]
+  end
+
+    %% Load Cell
+    LC_SCK -- "Pin 17" --> P4_Header
+    LC_DT -- "Pin 18" --> P4_Header
+    LC_VCC --> VCC_5V
+    LC_GND --> GND_Pad
+
+    %% RPM with Divider
+    RPM_Sig --> R_RPM1
+    R_RPM1 -- "Reduced Signal (~3.4V)" --> P2_Header
+    P2_Header -- "Pin 12" --> R_RPM2
+    R_RPM2 --> GND_Pad
+    RPM_VCC --> VCC_5V
+    RPM_GND --> GND_Pad
+
+    %% Pin 11 Silencer
+    P11_Pad -- "Direct Solder" --> Resistor_3k3
+    Resistor_3k3 --> GND_Pad
+    
+    style P4_Header fill:#ff9999,stroke:#333,stroke-width:2px
+    style RPM_Divider fill:#ccffcc,stroke:#006600,stroke-dasharray: 5 5

@@ -301,7 +301,7 @@ void ui_freestyleScreen_screen_init(void)
     lv_obj_set_align(ui_LabelEGT, LV_ALIGN_CENTER);
     lv_obj_set_style_text_align(ui_LabelEGT, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(ui_LabelEGT, "EGT\n000 F");
-    lv_obj_set_style_text_color(ui_LabelEGT, lv_color_hex(0xFFFF00), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(ui_LabelEGT, lv_color_hex(0xFFD700), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_LabelEGT, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_LabelEGT, &ui_font_tomorrow, LV_PART_MAIN | LV_STATE_DEFAULT);
     // HIDE BY DEFAULT - Unhidden in main.cpp if sensor found
@@ -315,7 +315,7 @@ void ui_freestyleScreen_screen_init(void)
     lv_obj_set_align(ui_LabelAFR, LV_ALIGN_CENTER);
     lv_obj_set_style_text_align(ui_LabelAFR, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(ui_LabelAFR, "AFR\n000 ");
-    lv_obj_set_style_text_color(ui_LabelAFR, lv_color_hex(0xFFFF00), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_color(ui_LabelAFR, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_LabelAFR, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_font(ui_LabelAFR, &ui_font_tomorrow, LV_PART_MAIN | LV_STATE_DEFAULT);
     // HIDE BY DEFAULT - Unhidden in main.cpp if sensor found

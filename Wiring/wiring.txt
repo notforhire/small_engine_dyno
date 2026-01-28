@@ -1,115 +1,92 @@
-# Pit Row Dyno - Wiring Manifest
-**Hardware Revision:** 1.0  
-**Controller:** Sunton ESP32-8048S070  
+# Pit Row Dyno - Wiring Manifest (PRO MODEL)
+# Hardware Revision: 1.1 (Divider Update)
+# Controller: Sunton ESP32-8048S070
+# Scope: Full Suite (RPM, Torque, EGT, Wideband AFR)
 
-## 1. Master Pinout Overview (Header P3 Hub)
-On this specific board revision, **Header P3** acts as the central data hub for the I2C and Load Cell sensors.
-
-| ESP32 Pin | Function | Connects To | Wire Color |
-| :--- | :--- | :--- | :--- |
-| **GPIO 17** | **SCK** (Clock) | HX711 Load Cell Amp | Red |
-| **GPIO 18** | **DT** (Data) | HX711 Load Cell Amp | Yellow |
-| **GPIO 19** | **SDA** (Data) | MCP9600 Thermocouple | Blue |
-| **GPIO 20** | **SCL** (Clock) | MCP9600 Thermocouple | Black |
-
----
+## 1. Master Pinout Overview
+| ESP32 Pin | Function | Header | Connects To | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **GPIO 11** | **Analog In** | **P2/P3** | **Wideband AFR** | **Divider: 2.2kΩ Series / 3.3kΩ Ground** |
+| **GPIO 12** | **Digital In** | **P2** | **RPM Sensor** | **Divider: 2.2kΩ Series / 4.7kΩ Ground** |
+| **GPIO 17** | **SCK** (Clock) | **P4** | **Load Cell Amp** | **MUST USE HEADER P4** |
+| **GPIO 18** | **DT** (Data) | **P4** | **Load Cell Amp** | **MUST USE HEADER P4** |
+| **GPIO 19** | **SDA** (Data) | **P3** | **EGT Amp** | MCP9600 (I2C) |
+| **GPIO 20** | **SCL** (Clock) | **P3** | **EGT Amp** | MCP9600 (I2C) |
 
 ## 2. Sensor Connection Details
 
-### A. RPM / Hall Effect Sensor
-* **Sensor Model:** NJK-5002A (PNP Type)
-* **Connector:** Delphi Weather Pack (3-Pin)
-* **ESP32 GPIO:** Pin 12 (Header P2)
-* **Voltage Logic:** 5V Sensor adapted to 3.3V Logic.
+### A. Load Cell (Force Measurement)
+* **Header:** P4
+* **Pins:** 17 (SCK), 18 (DT)
 
-**Wiring Harness:**
-| Delphi Pin | Wire Color | Destination | Notes |
-| :--- | :--- | :--- | :--- |
-| **Left** | **Black** | **Signal Circuit** (See Below) | Logic Signal |
-| **Center** | **Brown** | **Board Solder Pad (+5V)** | Main Power |
-| **Right** | **Blue** | **Board Solder Pad (GND)** | Common Ground |
+### B. RPM / Hall Effect Sensor (Voltage Divider)
+* **Source:** 5V Hall Signal (PNP)
+* **Wiring Path:**
+    1. **Sensor Signal** --> **R1 (2.2kΩ)** --> **Pin 12**.
+    2. **Pin 12** --> **R2 (4.7kΩ)** --> **GND**.
 
-**Signal Protection Circuit (Voltage Divider):**
-1. **Black Wire** connects to a **2.2kΩ Resistor**.
-2. Other side of 2.2kΩ connects to **ESP32 GPIO 12**.
-3. **ESP32 GPIO 12** also connects to a **4.7kΩ Resistor**.
-4. Other side of 4.7kΩ connects to **GND**.
+### C. Wideband AFR Input (Voltage Divider)
+* **Source:** 0-5V Analog Signal
+* **Wiring Path:**
+    1. **AFR Signal** --> **R1 (2.2kΩ)** --> **Pin 11**.
+    2. **Pin 11** --> **R2 (3.3kΩ)** --> **GND**.
 
----
+### D. EGT System
+* **Header:** P3
+* **Pins:** 19 (SDA), 20 (SCL)
 
-### B. Load Cell (Torque)
-* **Module:** HX711 Amplifier
-* **Connector:** Delphi Weather Pack (4-Pin)
-* **Polarity Note:** Wired specifically for this chassis (Red=E+, Black=E-).
+mermaid
 
-**Wiring Harness:**
-| Delphi Pin | Wire Color | Destination | Function |
-| :--- | :--- | :--- | :--- |
-| **Upper Left** | **Green** | HX711 **A+** | Signal Positive |
-| **Upper Right** | **White** | HX711 **A-** | Signal Negative |
-| **Lower Left** | **Red** | HX711 **E+** | Excitation Power (5V/3V) |
-| **Lower Right** | **Black** | HX711 **E-** | Excitation Ground |
-
----
-
-### C. Exhaust Temperature (EGT)
-* **Module:** MCP9600 Amplifier (I2C)
-* **Interface:** Panel-Mount K-Type Female Socket (Yellow)
-* **Address:** 0x60 (Default)
-
-**Wiring Path:**
-1. **Exhaust Probe** plugs into **Female K-Socket**.
-2. **Female Socket** wired internally to **MCP9600 Terminals**.
-3. **MCP9600 SDA** -> ESP32 **GPIO 19** (Header P3).
-4. **MCP9600 SCL** -> ESP32 **GPIO 20** (Header P3).
-
----
-
-## 3. Logic Schematic
-
-```mermaid
 ---
 config:
   look: handDrawn
   layout: elk
 ---
 flowchart TB
- subgraph subGraph0["Sunton ESP32-8048S070"]
-        P3_Hub["Header P3: 17, 18, 19, 20"]
-        P2_Sig["Header P2: Pin 12"]
-        Pad_5V(("Shared 5V Pad"))
-        Pad_3V3(("Solder Pad 3.3V"))
-        Pad_GND(("Common Ground Pad"))
+ subgraph Board["Sunton ESP32-8048S070"]
+        direction TB
+        P4_Header["Header P4 (Load Cell)"]
+        P3_Header["Header P3 (EGT)"]
+        P2_Header["Header P2 (RPM)"]
+        P11_Pad["Pin 11 (AFR)"]
+        GND_Pad["Common Ground"]
+        VCC_5V["5V Rail"]
   end
- subgraph subGraph1["RPM Sensor Delphi 3-Pin"]
-        Hall_Brown["Brown: VCC"]
-        Hall_Blue["Blue: GND"]
-        Hall_Black["Black: Signal"]
+ subgraph SensorRPM["RPM Sensor (PNP Hall)"]
+        RPM_Sig["Signal (5V)"]
   end
- subgraph subGraph2["Load Cell Delphi 4-Pin"]
-        LC_Red["Red: E+"]
-        LC_Black["Black: E-"]
-        LC_Green["Green: A+"]
-        LC_White["White: A-"]
+ subgraph RPM_Divider["RPM Divider"]
+        R_RPM1["R1: 2.2kΩ (Inline)"]
+        R_RPM2["R2: 4.7kΩ (Ground)"]
   end
- subgraph subGraph3["EGT System"]
-        Probe["K-Type Probe"]
-        Socket["Female Panel Socket"]
-        MCP["MCP9600 Amp"]
+ subgraph SensorAFR["Wideband AFR"]
+        AFR_Sig["Analog Out (0-5V)"]
   end
-    Hall_Brown --> Pad_5V
-    Hall_Blue --> Pad_GND
-    Hall_Black -- "2.2k ohm" --> P2_Sig
-    P2_Sig -- "4.7k ohm" --> Pad_GND
-    LC_Red --> HX711["HX711 Amp"]
-    LC_Black --> HX711
-    LC_Green --> HX711
-    LC_White --> HX711
-    HX711 -- VCC --> Pad_5V
-    HX711 -- GND --> Pad_GND
-    HX711 -- SCK 17 / DT 18 --> P3_Hub
-    Probe ==> Socket
-    Socket ==> MCP
-    MCP -- VIN --> Pad_3V3
-    MCP -- GND --> Pad_GND
-    MCP -- SDA 19 / SCL 20 --> P3_Hub
+ subgraph AFR_Divider["AFR Divider"]
+        R_AFR1["R1: 2.2kΩ (Inline)"]
+        R_AFR2["R2: 3.3kΩ (Ground)"]
+  end
+
+    %% Load Cell
+    Header_P4_17["Pin 17"] -- SCK --> P4_Header
+    Header_P4_18["Pin 18"] -- DT --> P4_Header
+
+    %% EGT
+    Header_P3_19["Pin 19"] -- SDA --> P3_Header
+    Header_P3_20["Pin 20"] -- SCL --> P3_Header
+
+    %% RPM Logic
+    RPM_Sig --> R_RPM1
+    R_RPM1 -- "Pin 12 Input" --> P2_Header
+    P2_Header --> R_RPM2
+    R_RPM2 --> GND_Pad
+
+    %% AFR Logic
+    AFR_Sig --> R_AFR1
+    R_AFR1 -- "Pin 11 Input" --> P11_Pad
+    P11_Pad --> R_AFR2
+    R_AFR2 --> GND_Pad
+
+    style P4_Header fill:#ff9999,stroke:#333
+    style RPM_Divider fill:#ccffcc,stroke:#006600
+    style AFR_Divider fill:#e1f5fe,stroke:#01579b

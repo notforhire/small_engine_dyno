@@ -239,7 +239,8 @@ void loadSavedSettings() {
 
   // 1. Load the RAW values from the last calibration
   long savedNoWeight = preferences.getLong("noWeight", 0); 
-  long savedCalibration = preferences.getLong("calibration", 0);
+  long savedCalibration = preferences.getLong("calibration", 2000000);
+  if(savedCalibration < 1000) savedCalibration = 2000000;
 
   // 2. LOAD SETTINGS
   finalDriveRatio = preferences.getFloat("finalDrive", 1.0f);
@@ -456,7 +457,11 @@ void setup() {
   // No guessing order. We make "Blue", we hand it to Torque. Forever.
   global_ser_torque = lv_chart_add_series(ui_Chart, lv_color_hex(0x2D00FF), LV_CHART_AXIS_PRIMARY_Y);
   global_ser_hp     = lv_chart_add_series(ui_Chart, lv_color_hex(0xFF0000), LV_CHART_AXIS_PRIMARY_Y);
+
+  // Only add AFR if hardware was found
+  if(afrFound) {
   global_ser_afr = lv_chart_add_series(ui_Chart, lv_color_hex(0xFFFFFF), LV_CHART_AXIS_SECONDARY_Y);
+  }
   
   // Only add EGT if hardware was found
   if(egtFound) {
@@ -465,11 +470,6 @@ void setup() {
   
   // 4. Add the formatted tick callback
   lv_obj_add_event_cb(ui_Chart, chart_draw_event_cb, LV_EVENT_DRAW_PART_BEGIN, NULL);
-
-  if (calibration != 0) {
-    Serial.println("Skipping Setup - Going to Gauges");
-    lv_scr_load(ui_homeScreen);
-  }
 
   // Create the sensor task on Core 0
   xTaskCreatePinnedToCore(

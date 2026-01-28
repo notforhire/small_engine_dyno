@@ -12,7 +12,7 @@ void ui_settingsScreen_screen_init(void)
     lv_obj_set_y(ui_settingsInstructions, -60);
     lv_obj_set_align(ui_settingsInstructions, LV_ALIGN_CENTER);
     lv_textarea_set_text(ui_settingsInstructions,
-    "Welcome to the Pit Row Dyno!! Let's get tuning!! If you are spinning the shaft at any ratio other than 1:1 enter that here, along with a number of magnets for RPM other than 1. Set the Global Max RPM to just slightly higher than your engine's max, and hit continue to calibrate the machine.");    
+    "Welcome to the Pit Row Dyno!! Let's get tuning!! If you are spinning the shaft at any ratio other than 1:1 enter that here, along with a number of magnets for RPM other than 1. Set the Global Max RPM to just slightly higher than your engine's max, and press the calibrate button to calibrate the machine.");    
     lv_obj_set_style_text_font(ui_settingsInstructions, &ui_font_tomorrow18, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_color(ui_settingsInstructions, lv_color_hex(0xFF0000), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_border_opa(ui_settingsInstructions, 100, LV_PART_MAIN | LV_STATE_DEFAULT);

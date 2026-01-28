@@ -12,11 +12,11 @@ If you do all of those things, and follow it through, here is what the expected 
 
 ![There is supposed to be a picture here](images/fullscreen_7.png)
 
-![There is supposed to be a picture here](images/bench_shot1.jpg)
+![There is supposed to be a picture here](images/finished.jpg)
 
-![There is supposed to be a picture here](images/gauges.jpg)
+![There is supposed to be a picture here](images/freestyleScreen.jpg)
 
-![There is supposed to be a picture here](images/engine_one1.jpg)
+![There is supposed to be a picture here](images/chartScreen.jpg)
 
 ![There is supposed to be a picture here](images/dyno_sheet.png)
 
