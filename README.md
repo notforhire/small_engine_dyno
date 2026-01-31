@@ -1,31 +1,58 @@
-Pit Row Dyno: Open Source DIY Dyno electronics and data acquisition for engine testing.
+# Pit Row Dyno: The Mechanical Chassis
+### Open Source Reference Design for Small Engine Dynamometers
 
-I'm not going to hold your hand, but if you are capable of finishing this project on your own you don't need me to.
+**This repository contains the CAD files, DXF cut patterns, and fabrication details for the Pit Row Dyno physical chassis.**
 
-I'm no expert at any one part of this project, so don't judge the code structure or the CAD file too harshly.
+> **⚠️ LOOKING FOR THE ELECTRONICS?**
+> The wiring diagrams, firmware, and sensor specs have moved to their own dedicated repository.
+> **[Go to the Pit Row Controller OS Repo Here](https://github.com/notforhire/Pit_Row_Dyno_Controller)**
 
-You will need to cut, drill, and weld. You will have to solder to the pcb of the touchscreen. A 3D printer will be needed to make the case for the touchscreen. You will need to get platformIO up and running on your computer in order to upload the code to the touchsreen. You will need to understand enough freeCAD to get the parts and hardware breakdown you need from the cad file, along with the dimensions and locations of all the cut/drilled/welded parts. If that all sounds like a reasonable enough barrier to entry that you still want to build one yourself, you are exactly the reason I am open sourcing this project, I'm proud of you.
+---
 
-If you do all of those things, and follow it through, here is what the expected results will look like:
+## The Barrier to Entry (Read This First)
+I'm not going to hold your hand, but if you are capable of finishing this project on your own, you don't need me to.
 
-![There is supposed to be a picture here](images/fullscreen_1.png)
+I'm no expert at any one part of this project, so don't judge the CAD file too harshly.
 
-![There is supposed to be a picture here](images/fullscreen_7.png)
+**To build this chassis, you will need to:**
+* **Cut, Drill, and Weld:** This is a steel fabrication project. If you don't have a welder or a grinder, you are in the wrong repo.
+* **Understand FreeCAD:** You will need to navigate the provided CAD files to get dimensions, part locations, and hardware breakdowns.
+* **Source Mechanical Parts:** Bearings, axles, load cells, and raw steel.
 
-![There is supposed to be a picture here](images/finished.jpg)
+If that sounds like a reasonable enough barrier to entry and you still want to build one yourself—you are exactly the reason I am open-sourcing this project. I'm proud of you.
+
+## The Form Factor
+The finished dyno has a **16" x 16" footprint** It weighs a little less than 50 pounds.
+It is designed to be easily transported to a track day with your friends, or just live in the corner of your shed without taking up valuable real estate.
+
+![The Finished Dyno](images/finished.jpg)
+
+![Size Reference](images/fullscreen_1.png)
+
+## What This Chassis Can Do
+I honestly couldn't tell you the physical ultimate limits of this design—a lot of that comes down to your craftsmanship and weld penetration.
+* **Engine Class:** Designed for Predator 212, Clone, Briggs LO206, and similar small engines.
+* **Capacity:** The reference design is robust enough for modified kart engines.
+* **The Electronics:** While this repo covers the steel, the system is designed to pair with the **Pit Row Controller**, which handles data acquisition up to 25,000 RPM.
+
+### DIY Data Acquisition
+This chassis is designed specifically to mount the **Pit Row Controller**.
+* **Automated Runs:** Connects to a laptop for professional graphing.
+* **Portable Power:** Runs off 5V USB-C (power bank compatible).
+* **Touch Interface:** Designed for a 7" Sunton Touchscreen.
+
+**[Get the Wiring & Code for the Electronics Here](https://github.com/notforhire/Pit_Row_Dyno_Controller)**
 
 ![There is supposed to be a picture here](images/freestyleScreen.jpg)
 
 ![There is supposed to be a picture here](images/chartScreen.jpg)
 
-![There is supposed to be a picture here](images/dyno_sheet.png)
+![Example Dyno Sheet](images/dyno_sheet.png)
 
-![There is supposed to be a picture here](images/desktop_chart_example.png)
+## Don't Want to Weld?
+Don't want to be hassled with sourcing steel, laser cutting plates, and jigs? Let alone the work of putting it together?
 
-![There is supposed to be a picture here](images/desktop_application.png)
+Never fear, you can buy the chassis pre-built or as a complete turn-key unit.
+**Go to [www.pitrowdyno.com](http://www.pitrowdyno.com) to check it out.**
 
-The finished dyno has a 16"x16" footprint and can be easily transported to track day with your friends, or just live in the corner of your shed not taking up much real estate. It is powered by 5 volts over USB-C, I power mine from one of those cheap portable batteries for charging your phone or what have you.
-
-I honestly couldn't tell you the limits of the dyno, a lot of that would come down to your craftsmanship. It does have two gauge/power ranges, the higher one goes up to 40hp, the low range caps at 20hp. You can also select an RPM range, with low topping out at 5000rpm, and high going to 10,000rpm.
-
-Don't want to be hassled with getting all the parts and pieces together, let alone the work of putting it together? Never fear, you can buy one pre built. Go to www.pitrowdyno.com to check it out.
+---

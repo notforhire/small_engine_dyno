@@ -1,0 +1,11 @@
+# ⚠️ MOVED: Electronics & Firmware
+
+**The firmware, wiring diagrams, and sensor documentation have been moved to a dedicated repository.**
+
+This repository (`small_engine_dyno`) is now exclusively for the **Mechanical Chassis** (CAD, DXF, Fabrication).
+
+To access the Controller Firmware, Wiring Guides, and Electronics BOM, please visit the new **Pit Row Controller OS** repository:
+
+### [👉 CLICK HERE FOR ELECTRONICS & CODE](https://github.com/notforhire/Pit_Row_Dyno_Controller)
+
+*(Please update your bookmarks. This separation allows us to support universal applications beyond just this specific chassis.)*
